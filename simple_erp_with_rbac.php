@@ -9,7 +9,7 @@ session_start();
 $host = 'localhost';
 $dbname = 'car_rental_erp';
 $username = 'root';
-$password = '';
+$password = 'SecureRootPass123!';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $username, $password);

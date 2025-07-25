@@ -13,16 +13,16 @@
 - [x] Deploy database changes to production
 - [x] Commit Phase 1 changes
 
-## Phase 2: Core Authentication Logic 🔄
-- [ ] Implement User class for authentication
-- [ ] Implement Session class for session management
-- [ ] Create login form and processing
-- [ ] Implement password hashing and validation
-- [ ] Create logout functionality
-- [ ] Implement session validation middleware
-- [ ] Add security logging
-- [ ] Test authentication functionality
-- [ ] Commit Phase 2 changes
+## Phase 2: Core Authentication Logic ✅
+- [x] Implement User class for authentication
+- [x] Implement Session class for session management
+- [x] Create login form and processing
+- [x] Implement password hashing and validation
+- [x] Create logout functionality
+- [x] Implement session validation middleware
+- [x] Add security logging
+- [x] Test authentication functionality
+- [x] Commit Phase 2 changes
 
 ## Phase 3: Role-Based Access Control 🔄
 - [ ] Implement Permission class

@@ -1,7 +1,7 @@
 <?php
-// Simple Car Rental ERP System with Authentication
-// Phase 2: Core Authentication Logic Implementation
-// Maintains SIMPLE, SIMPLE, SIMPLE architecture with security
+// Simple Car Rental ERP System with Role-Based Access Control
+// Phase 3: Role-Based Access Control Implementation
+// Maintains SIMPLE, SIMPLE, SIMPLE architecture with enterprise security
 
 session_start();
 
@@ -9,7 +9,7 @@ session_start();
 $host = 'localhost';
 $dbname = 'car_rental_erp';
 $username = 'root';
-$password = 'SecureRootPass123!';
+$password = '';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $username, $password);
@@ -69,7 +69,6 @@ class User {
     }
     
     private function logFailedAttempt($email) {
-        // Log failed attempt for security monitoring
         error_log("Failed login attempt for email: " . $email . " from IP: " . $_SERVER['REMOTE_ADDR']);
     }
     
@@ -184,13 +183,105 @@ class Session {
     }
 }
 
-// Initialize authentication
+// NEW: Permission Class for Role-Based Access Control
+class Permission {
+    private $pdo;
+    private $userPermissions = [];
+    
+    public function __construct($pdo) {
+        $this->pdo = $pdo;
+    }
+    
+    public function loadUserPermissions($userId) {
+        $stmt = $this->pdo->prepare("
+            SELECT s.name as screen_name, rp.can_view, rp.can_create, rp.can_edit, rp.can_delete
+            FROM user_roles ur
+            JOIN roles r ON ur.role_id = r.id
+            JOIN role_permissions rp ON r.id = rp.role_id
+            JOIN screens s ON rp.screen_id = s.id
+            WHERE ur.user_id = ? AND r.is_active = 1 AND s.is_active = 1
+        ");
+        $stmt->execute([$userId]);
+        $permissions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Organize permissions by screen
+        $this->userPermissions = [];
+        foreach ($permissions as $perm) {
+            $screen = $perm['screen_name'];
+            if (!isset($this->userPermissions[$screen])) {
+                $this->userPermissions[$screen] = [
+                    'can_view' => false,
+                    'can_create' => false,
+                    'can_edit' => false,
+                    'can_delete' => false
+                ];
+            }
+            
+            // Use OR logic - if any role grants permission, user has it
+            $this->userPermissions[$screen]['can_view'] = $this->userPermissions[$screen]['can_view'] || $perm['can_view'];
+            $this->userPermissions[$screen]['can_create'] = $this->userPermissions[$screen]['can_create'] || $perm['can_create'];
+            $this->userPermissions[$screen]['can_edit'] = $this->userPermissions[$screen]['can_edit'] || $perm['can_edit'];
+            $this->userPermissions[$screen]['can_delete'] = $this->userPermissions[$screen]['can_delete'] || $perm['can_delete'];
+        }
+        
+        return $this->userPermissions;
+    }
+    
+    public function canAccess($screen, $action = 'view') {
+        if (!isset($this->userPermissions[$screen])) {
+            return false;
+        }
+        
+        $actionKey = 'can_' . $action;
+        return isset($this->userPermissions[$screen][$actionKey]) ? 
+               $this->userPermissions[$screen][$actionKey] : false;
+    }
+    
+    public function getAccessibleScreens() {
+        $accessible = [];
+        foreach ($this->userPermissions as $screen => $perms) {
+            if ($perms['can_view']) {
+                $accessible[] = $screen;
+            }
+        }
+        return $accessible;
+    }
+    
+    public function getUserRoles($userId) {
+        $stmt = $this->pdo->prepare("
+            SELECT r.name FROM roles r 
+            JOIN user_roles ur ON r.id = ur.role_id 
+            WHERE ur.user_id = ? AND r.is_active = 1
+        ");
+        $stmt->execute([$userId]);
+        return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'name');
+    }
+    
+    public function isSuperAdmin($userId) {
+        $roles = $this->getUserRoles($userId);
+        return in_array('Super Admin', $roles);
+    }
+}
+
+// Initialize authentication and permissions
 $userAuth = new User($pdo);
 $sessionManager = new Session($pdo);
+$permissionManager = new Permission($pdo);
 
 // Check if user is logged in
 $currentUser = $sessionManager->validateSession();
 $isLoggedIn = $currentUser !== false;
+
+// Load user permissions if logged in
+$userPermissions = [];
+$accessibleScreens = [];
+$isSuperAdmin = false;
+
+if ($isLoggedIn) {
+    $userPermissions = $permissionManager->loadUserPermissions($currentUser['user_id']);
+    $accessibleScreens = $permissionManager->getAccessibleScreens();
+    $isSuperAdmin = $permissionManager->isSuperAdmin($currentUser['user_id']);
+}
 
 // Handle authentication actions
 $message = '';
@@ -396,14 +487,24 @@ if (!$isLoggedIn) {
     exit;
 }
 
-// Continue with the rest of the ERP application for authenticated users
-// Get current page
+// Get current page and validate access
 $page = $_GET['page'] ?? 'dashboard';
 
-// Handle form submissions (existing ERP functionality)
+// Check if user has access to the requested page
+if (!$permissionManager->canAccess($page, 'view')) {
+    // If user doesn't have access, redirect to first accessible page or show error
+    if (!empty($accessibleScreens)) {
+        $page = $accessibleScreens[0]; // Redirect to first accessible page
+    } else {
+        $error = "You don't have permission to access any screens. Please contact your administrator.";
+        $page = 'dashboard'; // Fallback
+    }
+}
+
+// Handle form submissions (existing ERP functionality with permission checks)
 if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
     try {
-        if (isset($_POST['add_vehicle'])) {
+        if (isset($_POST['add_vehicle']) && $permissionManager->canAccess('vehicles', 'create')) {
             $stmt = $pdo->prepare("INSERT INTO vehicles (make, model, year, vin, license_plate, color, mileage, daily_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([
                 $_POST['make'], $_POST['model'], $_POST['year'], $_POST['vin'], 
@@ -412,7 +513,7 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
             $message = "Vehicle added successfully!";
         }
         
-        if (isset($_POST['add_customer'])) {
+        if (isset($_POST['add_customer']) && $permissionManager->canAccess('customers', 'create')) {
             $stmt = $pdo->prepare("INSERT INTO customers (first_name, last_name, email, phone, address, driver_license, date_of_birth) VALUES (?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([
                 $_POST['first_name'], $_POST['last_name'], $_POST['email'], $_POST['phone'], 
@@ -421,7 +522,7 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
             $message = "Customer added successfully!";
         }
         
-        if (isset($_POST['add_reservation'])) {
+        if (isset($_POST['add_reservation']) && $permissionManager->canAccess('reservations', 'create')) {
             $start_date = date('Y-m-d', strtotime($_POST['start_date']));
             $end_date = date('Y-m-d', strtotime($_POST['end_date']));
             
@@ -433,7 +534,7 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
             $message = "Reservation added successfully!";
         }
         
-        if (isset($_POST['schedule_maintenance'])) {
+        if (isset($_POST['schedule_maintenance']) && $permissionManager->canAccess('maintenance', 'create')) {
             $scheduled_date = date('Y-m-d', strtotime($_POST['scheduled_date']));
             
             $stmt = $pdo->prepare("INSERT INTO maintenance_schedules (vehicle_id, maintenance_type, scheduled_date, description) VALUES (?, ?, ?, ?)");
@@ -447,6 +548,14 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
         $error = "Error: " . $e->getMessage();
     }
 }
+
+// Function to get screen display name
+function getScreenDisplayName($screenName, $pdo) {
+    $stmt = $pdo->prepare("SELECT display_name FROM screens WHERE name = ?");
+    $stmt->execute([$screenName]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $result ? $result['display_name'] : ucfirst($screenName);
+}
 ?>
 
 <!DOCTYPE html>
@@ -454,7 +563,7 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Car Rental ERP - Simple System</title>
+    <title>Car Rental ERP - Role-Based System</title>
     <style>
         * {
             margin: 0;
@@ -498,6 +607,14 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
         
         .user-name {
             font-weight: 500;
+        }
+        
+        .user-roles {
+            font-size: 0.8rem;
+            opacity: 0.9;
+            background: rgba(255,255,255,0.2);
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
         }
         
         .logout-btn {
@@ -551,6 +668,18 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
             transform: translateY(-2px);
         }
         
+        .nav a.disabled {
+            color: #ccc;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        
+        .nav a.disabled:hover {
+            background: none;
+            color: #ccc;
+            transform: none;
+        }
+        
         .content {
             background: white;
             padding: 2rem;
@@ -576,12 +705,27 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
             border: 1px solid #f5c6cb;
         }
         
+        .permission-denied {
+            background: #fff3cd;
+            color: #856404;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+            border: 1px solid #ffeaa7;
+        }
+        
         .form-section {
             background: #f8f9fa;
             padding: 1.5rem;
             border-radius: 8px;
             margin-bottom: 2rem;
             border-left: 4px solid #667eea;
+        }
+        
+        .form-section.disabled {
+            opacity: 0.6;
+            background: #f5f5f5;
+            border-left-color: #ccc;
         }
         
         .form-section h3 {
@@ -621,6 +765,12 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
             border-color: #667eea;
         }
         
+        input:disabled, select:disabled, textarea:disabled {
+            background: #f5f5f5;
+            color: #999;
+            cursor: not-allowed;
+        }
+        
         button {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -633,8 +783,14 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
             transition: transform 0.2s;
         }
         
-        button:hover {
+        button:hover:not(:disabled) {
             transform: translateY(-2px);
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
         }
         
         .table-container {
@@ -690,6 +846,16 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
             opacity: 0.9;
         }
         
+        .permission-info {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 5px;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            color: #1565c0;
+        }
+        
         @media (max-width: 768px) {
             .nav ul {
                 flex-direction: column;
@@ -719,7 +885,10 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
         <div class="header-content">
             <h1>Car Rental ERP System</h1>
             <div class="user-info">
-                <span class="user-name">Welcome, <?php echo htmlspecialchars($currentUser['first_name'] . ' ' . $currentUser['last_name']); ?></span>
+                <div>
+                    <span class="user-name">Welcome, <?php echo htmlspecialchars($currentUser['first_name'] . ' ' . $currentUser['last_name']); ?></span>
+                    <div class="user-roles"><?php echo implode(', ', $permissionManager->getUserRoles($currentUser['user_id'])); ?></div>
+                </div>
                 <form method="POST" style="display: inline;">
                     <button type="submit" name="logout" class="logout-btn">Logout</button>
                 </form>
@@ -730,11 +899,30 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
     <div class="container">
         <nav class="nav">
             <ul>
-                <li><a href="?page=dashboard" <?php echo $page === 'dashboard' ? 'class="active"' : ''; ?>>Dashboard</a></li>
-                <li><a href="?page=vehicles" <?php echo $page === 'vehicles' ? 'class="active"' : ''; ?>>Vehicles</a></li>
-                <li><a href="?page=customers" <?php echo $page === 'customers' ? 'class="active"' : ''; ?>>Customers</a></li>
-                <li><a href="?page=reservations" <?php echo $page === 'reservations' ? 'class="active"' : ''; ?>>Reservations</a></li>
-                <li><a href="?page=maintenance" <?php echo $page === 'maintenance' ? 'class="active"' : ''; ?>>Maintenance</a></li>
+                <?php
+                // Dynamic navigation based on user permissions
+                $allScreens = [
+                    'dashboard' => 'Dashboard',
+                    'vehicles' => 'Vehicles', 
+                    'customers' => 'Customers',
+                    'reservations' => 'Reservations',
+                    'maintenance' => 'Maintenance',
+                    'users' => 'Users',
+                    'roles' => 'Roles'
+                ];
+                
+                foreach ($allScreens as $screenName => $displayName) {
+                    $hasAccess = $permissionManager->canAccess($screenName, 'view');
+                    $activeClass = ($page === $screenName) ? 'active' : '';
+                    $disabledClass = !$hasAccess ? 'disabled' : '';
+                    
+                    if ($hasAccess) {
+                        echo "<li><a href=\"?page=$screenName\" class=\"$activeClass\">$displayName</a></li>";
+                    } else {
+                        echo "<li><a href=\"#\" class=\"$disabledClass\" title=\"No access\">$displayName</a></li>";
+                    }
+                }
+                ?>
             </ul>
         </nav>
 
@@ -748,10 +936,23 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
             <?php endif; ?>
 
             <?php
-            // Include the rest of the original ERP functionality
-            // Dashboard
-            if ($page === 'dashboard') {
-                // Get statistics
+            // Show permission info for current page
+            if (isset($userPermissions[$page])) {
+                $perms = $userPermissions[$page];
+                $permList = [];
+                if ($perms['can_view']) $permList[] = 'View';
+                if ($perms['can_create']) $permList[] = 'Create';
+                if ($perms['can_edit']) $permList[] = 'Edit';
+                if ($perms['can_delete']) $permList[] = 'Delete';
+                
+                if (!empty($permList)) {
+                    echo "<div class=\"permission-info\">Your permissions for this page: " . implode(', ', $permList) . "</div>";
+                }
+            }
+            
+            // Include page content based on permissions and current page
+            if ($page === 'dashboard' && $permissionManager->canAccess('dashboard', 'view')) {
+                // Dashboard content
                 $vehicleCount = $pdo->query("SELECT COUNT(*) FROM vehicles")->fetchColumn();
                 $availableVehicles = $pdo->query("SELECT COUNT(*) FROM vehicles WHERE status = 'Available'")->fetchColumn();
                 $activeReservations = $pdo->query("SELECT COUNT(*) FROM reservations WHERE start_date <= CURDATE() AND end_date >= CURDATE()")->fetchColumn();
@@ -820,58 +1021,59 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
                 <?php
             }
             
-            // Continue with vehicles, customers, reservations, and maintenance pages...
-            // (The rest of the original ERP functionality would continue here)
-            // For brevity, I'll include just the vehicles page as an example
-            
-            if ($page === 'vehicles') {
+            elseif ($page === 'vehicles' && $permissionManager->canAccess('vehicles', 'view')) {
+                $canCreate = $permissionManager->canAccess('vehicles', 'create');
+                $canEdit = $permissionManager->canAccess('vehicles', 'edit');
                 ?>
                 <h2>Vehicle Management</h2>
                 
-                <div class="form-section">
+                <div class="form-section <?php echo !$canCreate ? 'disabled' : ''; ?>">
                     <h3>Add New Vehicle</h3>
+                    <?php if (!$canCreate): ?>
+                        <div class="permission-denied">You don't have permission to add new vehicles.</div>
+                    <?php endif; ?>
                     <form method="POST">
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="make">Make:</label>
-                                <input type="text" id="make" name="make" required>
+                                <input type="text" id="make" name="make" <?php echo !$canCreate ? 'disabled' : 'required'; ?>>
                             </div>
                             <div class="form-group">
                                 <label for="model">Model:</label>
-                                <input type="text" id="model" name="model" required>
+                                <input type="text" id="model" name="model" <?php echo !$canCreate ? 'disabled' : 'required'; ?>>
                             </div>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="year">Year:</label>
-                                <input type="number" id="year" name="year" min="1900" max="2030" required>
+                                <input type="number" id="year" name="year" min="1900" max="2030" <?php echo !$canCreate ? 'disabled' : 'required'; ?>>
                             </div>
                             <div class="form-group">
                                 <label for="vin">VIN:</label>
-                                <input type="text" id="vin" name="vin" required>
+                                <input type="text" id="vin" name="vin" <?php echo !$canCreate ? 'disabled' : 'required'; ?>>
                             </div>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="license_plate">License Plate:</label>
-                                <input type="text" id="license_plate" name="license_plate" required>
+                                <input type="text" id="license_plate" name="license_plate" <?php echo !$canCreate ? 'disabled' : 'required'; ?>>
                             </div>
                             <div class="form-group">
                                 <label for="color">Color:</label>
-                                <input type="text" id="color" name="color" required>
+                                <input type="text" id="color" name="color" <?php echo !$canCreate ? 'disabled' : 'required'; ?>>
                             </div>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="mileage">Mileage:</label>
-                                <input type="number" id="mileage" name="mileage" min="0" required>
+                                <input type="number" id="mileage" name="mileage" min="0" <?php echo !$canCreate ? 'disabled' : 'required'; ?>>
                             </div>
                             <div class="form-group">
                                 <label for="daily_rate">Daily Rate ($):</label>
-                                <input type="number" id="daily_rate" name="daily_rate" min="0" step="0.01" required>
+                                <input type="number" id="daily_rate" name="daily_rate" min="0" step="0.01" <?php echo !$canCreate ? 'disabled' : 'required'; ?>>
                             </div>
                         </div>
-                        <button type="submit" name="add_vehicle">Add Vehicle</button>
+                        <button type="submit" name="add_vehicle" <?php echo !$canCreate ? 'disabled' : ''; ?>>Add Vehicle</button>
                     </form>
                 </div>
                 
@@ -887,6 +1089,9 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
                                 <th>Status</th>
                                 <th>Daily Rate</th>
                                 <th>Mileage</th>
+                                <?php if ($canEdit): ?>
+                                    <th>Actions</th>
+                                <?php endif; ?>
                             </tr>
                         </thead>
                         <tbody>
@@ -901,6 +1106,11 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
                                     <td><?php echo htmlspecialchars($row['status']); ?></td>
                                     <td>$<?php echo number_format($row['daily_rate'], 2); ?></td>
                                     <td><?php echo number_format($row['mileage']); ?></td>
+                                    <?php if ($canEdit): ?>
+                                        <td>
+                                            <button onclick="alert('Edit functionality would be implemented here')">Edit</button>
+                                        </td>
+                                    <?php endif; ?>
                                 </tr>
                             <?php endwhile; ?>
                         </tbody>
@@ -909,11 +1119,103 @@ if ($_POST && !isset($_POST['login']) && !isset($_POST['logout'])) {
                 <?php
             }
             
-            // Add other pages (customers, reservations, maintenance) here...
-            // For now, show a placeholder for other pages
-            if (in_array($page, ['customers', 'reservations', 'maintenance'])) {
-                echo "<h2>" . ucfirst($page) . "</h2>";
-                echo "<p>This page will be fully implemented in the next phase with role-based access control.</p>";
+            elseif ($page === 'customers' && $permissionManager->canAccess('customers', 'view')) {
+                $canCreate = $permissionManager->canAccess('customers', 'create');
+                ?>
+                <h2>Customer Management</h2>
+                
+                <div class="form-section <?php echo !$canCreate ? 'disabled' : ''; ?>">
+                    <h3>Add New Customer</h3>
+                    <?php if (!$canCreate): ?>
+                        <div class="permission-denied">You don't have permission to add new customers.</div>
+                    <?php endif; ?>
+                    <form method="POST">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="first_name">First Name:</label>
+                                <input type="text" id="first_name" name="first_name" <?php echo !$canCreate ? 'disabled' : 'required'; ?>>
+                            </div>
+                            <div class="form-group">
+                                <label for="last_name">Last Name:</label>
+                                <input type="text" id="last_name" name="last_name" <?php echo !$canCreate ? 'disabled' : 'required'; ?>>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="email">Email:</label>
+                                <input type="email" id="email" name="email" <?php echo !$canCreate ? 'disabled' : 'required'; ?>>
+                            </div>
+                            <div class="form-group">
+                                <label for="phone">Phone:</label>
+                                <input type="tel" id="phone" name="phone" <?php echo !$canCreate ? 'disabled' : 'required'; ?>>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="address">Address:</label>
+                            <textarea id="address" name="address" rows="3" <?php echo !$canCreate ? 'disabled' : 'required'; ?>></textarea>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="driver_license">Driver License:</label>
+                                <input type="text" id="driver_license" name="driver_license" <?php echo !$canCreate ? 'disabled' : 'required'; ?>>
+                            </div>
+                            <div class="form-group">
+                                <label for="date_of_birth">Date of Birth:</label>
+                                <input type="date" id="date_of_birth" name="date_of_birth" <?php echo !$canCreate ? 'disabled' : 'required'; ?>>
+                            </div>
+                        </div>
+                        <button type="submit" name="add_customer" <?php echo !$canCreate ? 'disabled' : ''; ?>>Add Customer</button>
+                    </form>
+                </div>
+                
+                <h3>Customer List</h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Driver License</th>
+                                <th>Date of Birth</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php
+                            $stmt = $pdo->query("SELECT * FROM customers ORDER BY last_name, first_name");
+                            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($row['first_name'] . ' ' . $row['last_name']); ?></td>
+                                    <td><?php echo htmlspecialchars($row['email']); ?></td>
+                                    <td><?php echo htmlspecialchars($row['phone']); ?></td>
+                                    <td><?php echo htmlspecialchars($row['driver_license']); ?></td>
+                                    <td><?php echo date('M j, Y', strtotime($row['date_of_birth'])); ?></td>
+                                </tr>
+                            <?php endwhile; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php
+            }
+            
+            // Add other pages (reservations, maintenance, users, roles) with similar permission checks
+            elseif (in_array($page, ['reservations', 'maintenance', 'users', 'roles'])) {
+                if ($permissionManager->canAccess($page, 'view')) {
+                    echo "<h2>" . getScreenDisplayName($page, $pdo) . "</h2>";
+                    echo "<p>This page is accessible to you and will be fully implemented with role-based controls.</p>";
+                    
+                    if ($page === 'users' || $page === 'roles') {
+                        if (!$isSuperAdmin) {
+                            echo "<div class=\"permission-denied\">Full access to this page requires Super Admin privileges.</div>";
+                        }
+                    }
+                } else {
+                    echo "<div class=\"permission-denied\">You don't have permission to access this page.</div>";
+                }
+            }
+            
+            else {
+                echo "<div class=\"permission-denied\">You don't have permission to access this page.</div>";
             }
             ?>
         </div>

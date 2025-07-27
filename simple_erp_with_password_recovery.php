@@ -1287,6 +1287,421 @@ if (!function_exists('include') || !file_exists('pages/dashboard.php')) {
             </table>
         </div>';
     }
+    
+    // Customers page content
+    if ($page === 'customers' && $permissions->canAccess('customers')) {
+        echo '
+        <h2>Customer Management</h2>
+        
+        <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px;">
+            <h3>Add New Customer</h3>
+            <form method="POST" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">First Name:</label>
+                    <input type="text" name="first_name" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Last Name:</label>
+                    <input type="text" name="last_name" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Email:</label>
+                    <input type="email" name="email" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Phone:</label>
+                    <input type="tel" name="phone" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Address:</label>
+                    <textarea name="address" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; height: 80px;"></textarea>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Driver License:</label>
+                    <input type="text" name="driver_license" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Date of Birth:</label>
+                    <input type="date" name="date_of_birth" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <button type="submit" name="action" value="add_customer" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; border: none; border-radius: 5px; cursor: pointer;" ' . ($permissions->canCreate('customers') ? '' : 'disabled') . '>Add Customer</button>
+                </div>
+            </form>
+        </div>
+        
+        <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            <h3>Customer List</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                <thead style="background: #f8f9fa;">
+                    <tr>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Name</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Email</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Phone</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Driver License</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>';
+        
+        // Get customers from database
+        $stmt = $pdo->query("SELECT * FROM customers ORDER BY last_name, first_name");
+        while ($customer = $stmt->fetch()) {
+            echo '<tr>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($customer['first_name'] . ' ' . $customer['last_name']) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($customer['email']) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($customer['phone']) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($customer['driver_license']) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">';
+            
+            if ($permissions->canEdit('customers')) {
+                echo '<button style="background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; margin-right: 5px;">Edit</button>';
+            }
+            
+            echo '</td>
+            </tr>';
+        }
+        
+        echo '</tbody>
+            </table>
+        </div>';
+    }
+    
+    // Reservations page content
+    if ($page === 'reservations' && $permissions->canAccess('reservations')) {
+        echo '
+        <h2>Reservation Management</h2>
+        
+        <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px;">
+            <h3>Create New Reservation</h3>
+            <form method="POST" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Customer:</label>
+                    <select name="customer_id" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">';
+        
+        // Get customers for dropdown
+        $stmt = $pdo->query("SELECT id, first_name, last_name FROM customers ORDER BY last_name, first_name");
+        echo '<option value="">Select Customer</option>';
+        while ($customer = $stmt->fetch()) {
+            echo '<option value="' . $customer['id'] . '">' . htmlspecialchars($customer['first_name'] . ' ' . $customer['last_name']) . '</option>';
+        }
+        
+        echo '</select>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Vehicle:</label>
+                    <select name="vehicle_id" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">';
+        
+        // Get available vehicles for dropdown
+        $stmt = $pdo->query("SELECT id, make, model, year, daily_rate FROM vehicles WHERE status = 'available' ORDER BY make, model");
+        echo '<option value="">Select Vehicle</option>';
+        while ($vehicle = $stmt->fetch()) {
+            echo '<option value="' . $vehicle['id'] . '">' . htmlspecialchars($vehicle['make'] . ' ' . $vehicle['model'] . ' (' . $vehicle['year'] . ') - $' . $vehicle['daily_rate'] . '/day') . '</option>';
+        }
+        
+        echo '</select>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Start Date:</label>
+                    <input type="date" name="start_date" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">End Date:</label>
+                    <input type="date" name="end_date" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Pickup Location:</label>
+                    <input type="text" name="pickup_location" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Dropoff Location:</label>
+                    <input type="text" name="dropoff_location" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Notes:</label>
+                    <textarea name="notes" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; height: 80px;"></textarea>
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <button type="submit" name="action" value="add_reservation" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; border: none; border-radius: 5px; cursor: pointer;" ' . ($permissions->canCreate('reservations') ? '' : 'disabled') . '>Create Reservation</button>
+                </div>
+            </form>
+        </div>
+        
+        <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            <h3>Current Reservations</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                <thead style="background: #f8f9fa;">
+                    <tr>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Customer</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Vehicle</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Dates</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Status</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Total</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>';
+        
+        // Get reservations from database
+        $stmt = $pdo->query("
+            SELECT r.*, 
+                   CONCAT(c.first_name, ' ', c.last_name) as customer_name,
+                   CONCAT(v.make, ' ', v.model) as vehicle_name
+            FROM reservations r 
+            JOIN customers c ON r.customer_id = c.id 
+            JOIN vehicles v ON r.vehicle_id = v.id 
+            ORDER BY r.start_date DESC
+        ");
+        while ($reservation = $stmt->fetch()) {
+            echo '<tr>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($reservation['customer_name']) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($reservation['vehicle_name']) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . date('M j', strtotime($reservation['start_date'])) . ' - ' . date('M j, Y', strtotime($reservation['end_date'])) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($reservation['status']) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">$' . number_format($reservation['total_amount'], 2) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">';
+            
+            if ($permissions->canEdit('reservations')) {
+                echo '<button style="background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; margin-right: 5px;">Edit</button>';
+            }
+            
+            echo '</td>
+            </tr>';
+        }
+        
+        echo '</tbody>
+            </table>
+        </div>';
+    }
+    
+    // Maintenance page content
+    if ($page === 'maintenance' && $permissions->canAccess('maintenance')) {
+        echo '
+        <h2>Maintenance Management</h2>
+        
+        <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px;">
+            <h3>Schedule Maintenance</h3>
+            <form method="POST" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Vehicle:</label>
+                    <select name="vehicle_id" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">';
+        
+        // Get vehicles for dropdown
+        $stmt = $pdo->query("SELECT id, make, model, year FROM vehicles ORDER BY make, model");
+        echo '<option value="">Select Vehicle</option>';
+        while ($vehicle = $stmt->fetch()) {
+            echo '<option value="' . $vehicle['id'] . '">' . htmlspecialchars($vehicle['make'] . ' ' . $vehicle['model'] . ' (' . $vehicle['year'] . ')') . '</option>';
+        }
+        
+        echo '</select>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Maintenance Type:</label>
+                    <input type="text" name="maintenance_type" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;" placeholder="e.g., Oil Change, Tire Rotation">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Scheduled Date:</label>
+                    <input type="date" name="scheduled_date" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Status:</label>
+                    <select name="status" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                        <option value="scheduled">Scheduled</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Description:</label>
+                    <textarea name="description" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; height: 80px;" placeholder="Detailed description of maintenance work"></textarea>
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <button type="submit" name="action" value="add_maintenance" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; border: none; border-radius: 5px; cursor: pointer;" ' . ($permissions->canCreate('maintenance') ? '' : 'disabled') . '>Schedule Maintenance</button>
+                </div>
+            </form>
+        </div>
+        
+        <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            <h3>Maintenance Schedule</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                <thead style="background: #f8f9fa;">
+                    <tr>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Vehicle</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Type</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Scheduled Date</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Status</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>';
+        
+        // Get maintenance records from database
+        $stmt = $pdo->query("
+            SELECT m.*, 
+                   CONCAT(v.make, ' ', v.model, ' (', v.license_plate, ')') as vehicle_info
+            FROM maintenance_schedules m 
+            JOIN vehicles v ON m.vehicle_id = v.id 
+            ORDER BY m.scheduled_date DESC
+        ");
+        while ($maintenance = $stmt->fetch()) {
+            echo '<tr>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($maintenance['vehicle_info']) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($maintenance['maintenance_type']) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . date('M j, Y', strtotime($maintenance['scheduled_date'])) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($maintenance['status']) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">';
+            
+            if ($permissions->canEdit('maintenance')) {
+                echo '<button style="background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; margin-right: 5px;">Edit</button>';
+            }
+            
+            echo '</td>
+            </tr>';
+        }
+        
+        echo '</tbody>
+            </table>
+        </div>';
+    }
+    
+    // Users page content (Super Admin only)
+    if ($page === 'users' && $permissions->canAccess('users') && $permissions->isSuperAdmin()) {
+        echo '
+        <h2>User Management</h2>
+        
+        <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px;">
+            <h3>Add New User</h3>
+            <form method="POST" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Email:</label>
+                    <input type="email" name="email" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">First Name:</label>
+                    <input type="text" name="first_name" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Last Name:</label>
+                    <input type="text" name="last_name" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Temporary Password:</label>
+                    <input type="password" name="password" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <button type="submit" name="action" value="add_user" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; border: none; border-radius: 5px; cursor: pointer;">Add User</button>
+                </div>
+            </form>
+        </div>
+        
+        <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            <h3>System Users</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                <thead style="background: #f8f9fa;">
+                    <tr>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Name</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Email</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Roles</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Status</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>';
+        
+        // Get users with their roles
+        $stmt = $pdo->query("
+            SELECT u.*, 
+                   GROUP_CONCAT(r.display_name SEPARATOR ', ') as role_names
+            FROM users u 
+            LEFT JOIN user_roles ur ON u.id = ur.user_id 
+            LEFT JOIN roles r ON ur.role_id = r.id 
+            GROUP BY u.id 
+            ORDER BY u.last_name, u.first_name
+        ");
+        while ($user = $stmt->fetch()) {
+            echo '<tr>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($user['first_name'] . ' ' . $user['last_name']) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($user['email']) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($user['role_names'] ?: 'No roles assigned') . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . ($user['is_active'] ? 'Active' : 'Inactive') . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">
+                    <button style="background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; margin-right: 5px;">Edit</button>
+                    <button style="background: #ffc107; color: black; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Roles</button>
+                </td>
+            </tr>';
+        }
+        
+        echo '</tbody>
+            </table>
+        </div>';
+    }
+    
+    // Roles page content (Super Admin only)
+    if ($page === 'roles' && $permissions->canAccess('roles') && $permissions->isSuperAdmin()) {
+        echo '
+        <h2>Role Management</h2>
+        
+        <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px;">
+            <h3>Add New Role</h3>
+            <form method="POST" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Role Name:</label>
+                    <input type="text" name="role_name" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Display Name:</label>
+                    <input type="text" name="display_name" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Description:</label>
+                    <textarea name="description" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; height: 80px;"></textarea>
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <button type="submit" name="action" value="add_role" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; border: none; border-radius: 5px; cursor: pointer;">Add Role</button>
+                </div>
+            </form>
+        </div>
+        
+        <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            <h3>System Roles</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                <thead style="background: #f8f9fa;">
+                    <tr>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Role Name</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Display Name</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Description</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Users</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>';
+        
+        // Get roles with user count
+        $stmt = $pdo->query("
+            SELECT r.*, 
+                   COUNT(ur.user_id) as user_count
+            FROM roles r 
+            LEFT JOIN user_roles ur ON r.id = ur.role_id 
+            GROUP BY r.id 
+            ORDER BY r.role_name
+        ");
+        while ($role = $stmt->fetch()) {
+            echo '<tr>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($role['role_name']) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($role['display_name']) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($role['description']) . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . $role['user_count'] . '</td>
+                <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">
+                    <button style="background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; margin-right: 5px;">Edit</button>
+                    <button style="background: #17a2b8; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Permissions</button>
+                </td>
+            </tr>';
+        }
+        
+        echo '</tbody>
+            </table>
+        </div>';
+    }
 }
 ?>
 

@@ -8,7 +8,7 @@ session_start();
 $host = 'localhost';
 $dbname = 'car_rental_erp';
 $username = 'root';
-$password = '';
+$password = 'SecureRootPass123!';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $username, $password);
@@ -70,7 +70,7 @@ class PasswordRecovery {
     public function generateTemporaryPassword() {
         // Generate secure temporary password (12 characters)
         $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%';
-        $password = '';
+        $password = 'SecureRootPass123!';
         for ($i = 0; $i < 12; $i++) {
             $password .= $chars[random_int(0, strlen($chars) - 1)];
         }
@@ -819,7 +819,6 @@ if ($must_change_password && $page !== 'change_password') {
         .main-content {
             padding: 2rem;
             background: #f8f9fa;
-            min-height: calc(100vh - 140px);
         }
         
         .permission-info {

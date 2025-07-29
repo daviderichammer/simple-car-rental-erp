@@ -600,11 +600,148 @@ if ($_POST) {
                 }
                 break;
                 
+            case 'add_vehicle':
+                if ($permissions->canCreate('vehicles')) {
+                    $make = $_POST['make'] ?? '';
+                    $model = $_POST['model'] ?? '';
+                    $year = $_POST['year'] ?? '';
+                    $vin = $_POST['vin'] ?? '';
+                    $license_plate = $_POST['license_plate'] ?? '';
+                    $color = $_POST['color'] ?? '';
+                    $mileage = $_POST['mileage'] ?? '';
+                    $daily_rate = $_POST['daily_rate'] ?? '';
+                    
+                    try {
+                        $stmt = $pdo->prepare("
+                            INSERT INTO vehicles (make, model, year, vin, license_plate, color, mileage, daily_rate, status, created_at) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'available', NOW())
+                        ");
+                        $stmt->execute([$make, $model, $year, $vin, $license_plate, $color, $mileage, $daily_rate]);
+                        
+                        header('Location: ?page=vehicles&success=1');
+                        exit;
+                    } catch (PDOException $e) {
+                        $error = 'Error adding vehicle: ' . $e->getMessage();
+                    }
+                } else {
+                    $error = 'You do not have permission to add vehicles.';
+                }
+                break;
+                
+            case 'edit_vehicle':
+                if ($permissions->canEdit('vehicles')) {
+                    $vehicle_id = $_POST['vehicle_id'] ?? '';
+                    $make = $_POST['make'] ?? '';
+                    $model = $_POST['model'] ?? '';
+                    $year = $_POST['year'] ?? '';
+                    $vin = $_POST['vin'] ?? '';
+                    $license_plate = $_POST['license_plate'] ?? '';
+                    $color = $_POST['color'] ?? '';
+                    $mileage = $_POST['mileage'] ?? '';
+                    $daily_rate = $_POST['daily_rate'] ?? '';
+                    $status = $_POST['status'] ?? '';
+                    
+                    try {
+                        $stmt = $pdo->prepare("
+                            UPDATE vehicles 
+                            SET make = ?, model = ?, year = ?, vin = ?, license_plate = ?, 
+                                color = ?, mileage = ?, daily_rate = ?, status = ?, updated_at = NOW()
+                            WHERE id = ?
+                        ");
+                        $stmt->execute([$make, $model, $year, $vin, $license_plate, $color, $mileage, $daily_rate, $status, $vehicle_id]);
+                        
+                        header('Location: ?page=vehicles&success=1');
+                        exit;
+                    } catch (PDOException $e) {
+                        $error = 'Error updating vehicle: ' . $e->getMessage();
+                    }
+                } else {
+                    $error = 'You do not have permission to edit vehicles.';
+                }
+                break;
+                
             case 'logout':
                 $auth->logout();
                 header('Location: ' . $_SERVER['PHP_SELF']);
                 exit;
         }
+    }
+}
+
+// Handle AJAX requests
+if (isset($_GET['action'])) {
+    switch ($_GET['action']) {
+        case 'get_vehicle':
+            if ($permissions->canView('vehicles')) {
+                $vehicle_id = $_GET['id'] ?? '';
+                try {
+                    $stmt = $pdo->prepare("SELECT * FROM vehicles WHERE id = ?");
+                    $stmt->execute([$vehicle_id]);
+                    $vehicle = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if ($vehicle) {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => true, 'vehicle' => $vehicle]);
+                        exit;
+                    } else {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Vehicle not found']);
+                        exit;
+                    }
+                } catch (PDOException $e) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+                    exit;
+                }
+            } else {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'Permission denied']);
+                exit;
+            }
+            break;
+            
+        case 'delete_vehicle':
+            if ($permissions->canDelete('vehicles')) {
+                $vehicle_id = $_GET['id'] ?? '';
+                try {
+                    // Check if vehicle is currently rented
+                    $stmt = $pdo->prepare("
+                        SELECT COUNT(*) as active_reservations 
+                        FROM reservations 
+                        WHERE vehicle_id = ? AND status IN ('confirmed', 'active')
+                    ");
+                    $stmt->execute([$vehicle_id]);
+                    $result = $stmt->fetch();
+                    
+                    if ($result['active_reservations'] > 0) {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Cannot delete vehicle with active reservations']);
+                        exit;
+                    }
+                    
+                    $stmt = $pdo->prepare("DELETE FROM vehicles WHERE id = ?");
+                    $stmt->execute([$vehicle_id]);
+                    
+                    if ($stmt->rowCount() > 0) {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => true, 'message' => 'Vehicle deleted successfully']);
+                        exit;
+                    } else {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Vehicle not found']);
+                        exit;
+                    }
+                } catch (PDOException $e) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+                    exit;
+                }
+            } else {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'Permission denied']);
+                exit;
+            }
+            break;
     }
 }
 

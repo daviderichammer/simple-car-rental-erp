@@ -179,16 +179,225 @@
 }
 </style>
 
+<!-- Edit Vehicle Modal -->
+<div id="editVehicleModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Edit Vehicle</h3>
+            <span class="close" onclick="closeEditModal()">&times;</span>
+        </div>
+        <form id="editVehicleForm" method="POST">
+            <input type="hidden" name="action" value="edit_vehicle">
+            <input type="hidden" id="edit_vehicle_id" name="vehicle_id">
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit_make">Make:</label>
+                    <input type="text" id="edit_make" name="make" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_model">Model:</label>
+                    <input type="text" id="edit_model" name="model" required>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit_year">Year:</label>
+                    <input type="number" id="edit_year" name="year" min="1900" max="2030" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_vin">VIN:</label>
+                    <input type="text" id="edit_vin" name="vin" required>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit_license_plate">License Plate:</label>
+                    <input type="text" id="edit_license_plate" name="license_plate" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_color">Color:</label>
+                    <input type="text" id="edit_color" name="color" required>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit_mileage">Mileage:</label>
+                    <input type="number" id="edit_mileage" name="mileage" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_daily_rate">Daily Rate ($):</label>
+                    <input type="number" id="edit_daily_rate" name="daily_rate" step="0.01" required>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit_status">Status:</label>
+                    <select id="edit_status" name="status" required>
+                        <option value="available">Available</option>
+                        <option value="rented">Rented</option>
+                        <option value="maintenance">Maintenance</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update Vehicle</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background-color: white;
+    padding: 0;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+}
+
+.close {
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.close:hover {
+    opacity: 0.7;
+}
+
+.modal form {
+    padding: 20px;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+select {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    width: 100%;
+}
+</style>
+
 <script>
 function editVehicle(id) {
-    // Edit functionality to be implemented
-    alert('Edit vehicle functionality - ID: ' + id);
+    // Fetch vehicle data and populate the edit form
+    fetch('?page=vehicles&action=get_vehicle&id=' + id)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const vehicle = data.vehicle;
+                document.getElementById('edit_vehicle_id').value = vehicle.id;
+                document.getElementById('edit_make').value = vehicle.make;
+                document.getElementById('edit_model').value = vehicle.model;
+                document.getElementById('edit_year').value = vehicle.year;
+                document.getElementById('edit_vin').value = vehicle.vin;
+                document.getElementById('edit_license_plate').value = vehicle.license_plate;
+                document.getElementById('edit_color').value = vehicle.color;
+                document.getElementById('edit_mileage').value = vehicle.mileage;
+                document.getElementById('edit_daily_rate').value = vehicle.daily_rate;
+                document.getElementById('edit_status').value = vehicle.status;
+                
+                document.getElementById('editVehicleModal').style.display = 'flex';
+            } else {
+                alert('Error loading vehicle data: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error loading vehicle data');
+        });
+}
+
+function closeEditModal() {
+    document.getElementById('editVehicleModal').style.display = 'none';
 }
 
 function deleteVehicle(id) {
-    if (confirm('Are you sure you want to delete this vehicle?')) {
-        // Delete functionality to be implemented
-        alert('Delete vehicle functionality - ID: ' + id);
+    if (confirm('Are you sure you want to delete this vehicle? This action cannot be undone.')) {
+        fetch('?page=vehicles&action=delete_vehicle&id=' + id, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Vehicle deleted successfully!');
+                location.reload();
+            } else {
+                alert('Error deleting vehicle: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting vehicle');
+        });
+    }
+}
+
+// Close modal when clicking outside of it
+window.onclick = function(event) {
+    const modal = document.getElementById('editVehicleModal');
+    if (event.target == modal) {
+        closeEditModal();
     }
 }
 </script>

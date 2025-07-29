@@ -1,7 +1,6 @@
-?>
 <div class="page-header">
     <h2>User Management</h2>
-    <p>Manage system users and their access</p>
+    <p>Manage system users and accounts</p>
 </div>
 
 <div class="data-table">

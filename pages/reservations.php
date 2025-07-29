@@ -1,4 +1,3 @@
-?>
 <div class="page-header">
     <h2>Reservation Management</h2>
     <p>Manage vehicle reservations and bookings</p>

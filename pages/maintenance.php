@@ -1,4 +1,3 @@
-?>
 <div class="page-header">
     <h2>Maintenance Management</h2>
     <p>Schedule and track vehicle maintenance</p>

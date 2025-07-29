@@ -332,8 +332,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
                 
             case 'update_role':
-                $stmt = $pdo->prepare("UPDATE roles SET role_name = ?, display_name = ?, description = ? WHERE id = ?");
-                $success = $stmt->execute([$_POST['role_name'], $_POST['display_name'], $_POST['description'], $_POST['id']]);
+                $stmt = $pdo->prepare("UPDATE roles SET name = ?, display_name = ?, description = ? WHERE id = ?");
+                $success = $stmt->execute([$_POST['name'], $_POST['display_name'], $_POST['description'], $_POST['id']]);
                 echo json_encode(['success' => $success]);
                 exit;
                 
@@ -979,15 +979,15 @@ $current_page = $_GET['page'] ?? 'dashboard';
             .then(response => response.json())
             .then(data => {
                 document.getElementById('edit_reservation_id').value = data.id;
-                document.getElementById('edit_reservation_customer_id').value = data.customer_id;
-                document.getElementById('edit_reservation_vehicle_id').value = data.vehicle_id;
-                document.getElementById('edit_reservation_start_date').value = data.start_date;
-                document.getElementById('edit_reservation_end_date').value = data.end_date;
-                document.getElementById('edit_reservation_pickup_location').value = data.pickup_location;
-                document.getElementById('edit_reservation_dropoff_location').value = data.dropoff_location;
-                document.getElementById('edit_reservation_total_amount').value = data.total_amount;
-                document.getElementById('edit_reservation_status').value = data.status;
-                document.getElementById('edit_reservation_notes').value = data.notes;
+                document.getElementById('edit_customer_id').value = data.customer_id;
+                document.getElementById('edit_vehicle_id').value = data.vehicle_id;
+                document.getElementById('edit_start_date').value = data.start_date;
+                document.getElementById('edit_end_date').value = data.end_date;
+                document.getElementById('edit_pickup_location').value = data.pickup_location;
+                document.getElementById('edit_dropoff_location').value = data.dropoff_location;
+                document.getElementById('edit_total_amount').value = data.total_amount;
+                document.getElementById('edit_status').value = data.status;
+                document.getElementById('edit_notes').value = data.notes;
                 
                 document.getElementById('editReservationModal').style.display = 'block';
             })
@@ -1213,8 +1213,8 @@ $current_page = $_GET['page'] ?? 'dashboard';
             .then(response => response.json())
             .then(data => {
                 document.getElementById('edit_role_id').value = data.id;
-                document.getElementById('edit_role_name').value = data.role_name;
-                document.getElementById('edit_display_name').value = data.display_name;
+                document.getElementById('edit_role_name').value = data.name;
+                document.getElementById('edit_role_display_name').value = data.display_name;
                 document.getElementById('edit_role_description').value = data.description;
                 
                 document.getElementById('editRoleModal').style.display = 'block';

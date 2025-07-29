@@ -358,6 +358,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['ajax'])) {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
+            case 'logout':
+                // Destroy session and redirect to login
+                session_destroy();
+                header("Location: " . $_SERVER['PHP_SELF']);
+                exit;
+                
             case 'add_vehicle':
                 $stmt = $pdo->prepare("INSERT INTO vehicles (make, model, year, vin, license_plate, color, mileage, daily_rate, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'available')");
                 $stmt->execute([$_POST['make'], $_POST['model'], $_POST['year'], $_POST['vin'], $_POST['license_plate'], $_POST['color'], $_POST['mileage'], $_POST['daily_rate']]);

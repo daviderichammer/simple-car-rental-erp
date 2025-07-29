@@ -1,4 +1,3 @@
-?>
 <div class="page-header">
     <h2>Role Management</h2>
     <p>Manage user roles and permissions</p>

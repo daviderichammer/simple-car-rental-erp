@@ -1,7 +1,6 @@
-?>
 <div class="page-header">
     <h2>Vehicle Management</h2>
-    <p>Manage your fleet of rental vehicles</p>
+    <p>Manage fleet vehicles and inventory</p>
 </div>
 
 <?php if ($permissions->hasPermission('vehicles', 'create')): ?>

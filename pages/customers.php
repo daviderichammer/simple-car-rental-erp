@@ -1,7 +1,6 @@
-?>
 <div class="page-header">
     <h2>Customer Management</h2>
-    <p>Manage your customer database</p>
+    <p>Manage customer information and profiles</p>
 </div>
 
 <?php if ($permissions->hasPermission('customers', 'create')): ?>

@@ -747,6 +747,65 @@ $current_page = $_GET['page'] ?? 'dashboard';
             .stats-grid {
                 grid-template-columns: 1fr;
             }
+            
+            /* Mobile Table Responsiveness */
+            .table-responsive {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                margin-bottom: 1rem;
+            }
+            
+            table {
+                min-width: 800px;
+                font-size: 0.85rem;
+            }
+            
+            table th:last-child,
+            table td:last-child {
+                position: sticky;
+                right: 0;
+                background: white;
+                box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+                z-index: 10;
+            }
+            
+            .btn-edit, .btn-delete {
+                padding: 0.4rem 0.8rem;
+                font-size: 0.8rem;
+                min-width: 60px;
+                touch-action: manipulation;
+            }
+            
+            .modal-content {
+                width: 95%;
+                margin: 2% auto;
+            }
+            
+            .modal-footer {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            .modal-footer button {
+                width: 100%;
+                margin: 0;
+            }
+            
+            .nav-tabs {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                white-space: nowrap;
+            }
+            
+            .nav-tab {
+                font-size: 0.85rem;
+                padding: 0.5rem 0.8rem;
+            }
+            
+            .badge {
+                font-size: 0.7rem;
+                padding: 0.2rem 0.4rem;
+            }
         }
     </style>
 </head>

@@ -50,6 +50,7 @@
 
 <div class="data-table">
     <h3 style="padding: 1rem; margin: 0; background: #f8f9fa; border-bottom: 1px solid #dee2e6;">Vehicle Inventory</h3>
+    <div class="table-responsive">
     <table>
         <thead>
             <tr>
@@ -84,6 +85,7 @@
             ?>
         </tbody>
     </table>
+    </div>
 </div>
 
 <!-- Edit Vehicle Modal -->

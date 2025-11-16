@@ -95,10 +95,11 @@ $allVins = $pdo->query("SELECT vin, make, model, year FROM vehicles ORDER BY yea
             <h2>Vehicle Owners</h2>
             <p>Manage vehicle ownership information</p>
         </div>
-        <div>
+        <div style="display: flex; gap: 0.5rem;">
             <button class="btn btn-primary btn-lg" onclick="showAddOwnerModal()">
                 <i class="bi bi-plus-circle"></i> + Add New Owner
             </button>
+            <button id="bulkDeleteBtn" onclick="bulkDeleteOwners()" style="background: #dc3545; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 5px; cursor: pointer; font-size: 1rem; font-weight: 500; display: none;">🗑️ Delete Selected (<span id="selectedCount">0</span>)</button>
         </div>
     </div>
 
@@ -193,6 +194,7 @@ $allVins = $pdo->query("SELECT vin, make, model, year FROM vehicles ORDER BY yea
                 <table class="table table-striped table-hover">
                     <thead>
                         <tr>
+                            <th style="width: 40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
                             <th>VIN</th>
                             <th>Vehicle</th>
                             <th>License Plate</th>
@@ -205,6 +207,7 @@ $allVins = $pdo->query("SELECT vin, make, model, year FROM vehicles ORDER BY yea
                     <tbody>
                         <?php foreach ($owners as $owner): ?>
                         <tr>
+                            <td><input type='checkbox' class='row-checkbox' value='<?php echo $owner['id']; ?>' onchange='updateBulkDeleteButton()'></td>
                             <td><small><?php echo htmlspecialchars($owner['vin']); ?></small></td>
                             <td><?php echo htmlspecialchars($owner['year'] . ' ' . $owner['make'] . ' ' . $owner['model']); ?></td>
                             <td><?php echo htmlspecialchars($owner['license_plate'] ?? 'N/A'); ?></td>
@@ -554,6 +557,67 @@ function confirmDeleteOwner() {
     .catch(error => {
         console.error('Error:', error);
         alert('An error occurred while deleting the owner');
+    });
+}
+
+// Bulk Operations Functions
+function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+    });
+    updateBulkDeleteButton();
+}
+
+function updateBulkDeleteButton() {
+    const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+    const count = checkboxes.length;
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    const selectedCount = document.getElementById('selectedCount');
+    
+    if (count > 0) {
+        bulkDeleteBtn.style.display = 'block';
+        selectedCount.textContent = count;
+    } else {
+        bulkDeleteBtn.style.display = 'none';
+    }
+    
+    const allCheckboxes = document.querySelectorAll('.row-checkbox');
+    const selectAll = document.getElementById('selectAll');
+    selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+}
+
+function bulkDeleteOwners() {
+    const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+    const ids = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (ids.length === 0) {
+        alert('Please select at least one owner record to delete');
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to delete ${ids.length} owner record(s)?\n\nThis action cannot be undone.`)) {
+        return;
+    }
+    
+    fetch('index.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `ajax=1&action=bulk_delete_owners&ids=${ids.join(',')}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Successfully deleted ${ids.length} owner record(s)`);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.message || 'Failed to delete owner records'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while deleting owner records');
     });
 }
 </script>

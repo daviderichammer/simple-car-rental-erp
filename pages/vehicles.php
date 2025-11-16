@@ -3,9 +3,12 @@
         <h2>Vehicle Management</h2>
         <p>Manage fleet vehicles and inventory with tracking devices and specifications</p>
     </div>
-    <button onclick="openModal('addVehicleModal')" style="background: #007bff; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 5px; cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 0.5rem;">
-        <span style="font-size: 1.2rem;">+</span> Add New Vehicle
-    </button>
+    <div style="display: flex; gap: 0.5rem;">
+        <button onclick="openModal('addVehicleModal')" style="background: #007bff; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 5px; cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-size: 1.2rem;">+</span> Add New Vehicle
+        </button>
+        <button id="bulkDeleteBtn" onclick="bulkDeleteVehicles()" style="background: #dc3545; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 5px; cursor: pointer; font-size: 1rem; font-weight: 500; display: none;">🗑️ Delete Selected (<span id="selectedCount">0</span>)</button>
+    </div>
 </div>
 
 <?php
@@ -159,6 +162,7 @@ $makes = $pdo->query("SELECT DISTINCT make FROM vehicles ORDER BY make")->fetchA
     <table>
         <thead>
             <tr>
+                <th style="width: 40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
                 <th>Vehicle</th>
                 <th>VIN / Plate</th>
                 <th>Location</th>
@@ -172,6 +176,7 @@ $makes = $pdo->query("SELECT DISTINCT make FROM vehicles ORDER BY make")->fetchA
             <?php if (count($vehicles) > 0): ?>
                 <?php foreach ($vehicles as $vehicle): ?>
                 <tr>
+                    <td><input type='checkbox' class='row-checkbox' value='<?php echo $vehicle['id']; ?>' onchange='updateBulkDeleteButton()'></td>
                     <td>
                         <strong><?php echo htmlspecialchars($vehicle['year'] . ' ' . $vehicle['make'] . ' ' . $vehicle['model']); ?></strong><br>
                         <small style="color: #666;"><?php echo htmlspecialchars($vehicle['color']); ?></small>
@@ -838,4 +843,67 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+</script>
+
+<script>
+// Bulk Operations Functions
+function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+    });
+    updateBulkDeleteButton();
+}
+
+function updateBulkDeleteButton() {
+    const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+    const count = checkboxes.length;
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    const selectedCount = document.getElementById('selectedCount');
+    
+    if (count > 0) {
+        bulkDeleteBtn.style.display = 'block';
+        selectedCount.textContent = count;
+    } else {
+        bulkDeleteBtn.style.display = 'none';
+    }
+    
+    const allCheckboxes = document.querySelectorAll('.row-checkbox');
+    const selectAll = document.getElementById('selectAll');
+    selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+}
+
+function bulkDeleteVehicles() {
+    const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+    const ids = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (ids.length === 0) {
+        alert('Please select at least one vehicle to delete');
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to delete ${ids.length} vehicle(s)?\n\nThis action cannot be undone.`)) {
+        return;
+    }
+    
+    fetch('index.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `ajax=1&action=bulk_delete_vehicles&ids=${ids.join(',')}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Successfully deleted ${ids.length} vehicle(s)`);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.message || 'Failed to delete vehicles'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while deleting vehicles');
+    });
+}
 </script>

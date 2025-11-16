@@ -644,6 +644,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo json_encode(['success' => $success, 'deleted_count' => $stmt->rowCount()]);
                 exit;
                 
+            case 'bulk_delete_owners':
+                $ids = explode(',', $_POST['ids']);
+                $placeholders = str_repeat('?,', count($ids) - 1) . '?';
+                $stmt = $pdo->prepare("DELETE FROM vehicle_owners WHERE id IN ($placeholders)");
+                $success = $stmt->execute($ids);
+                echo json_encode(['success' => $success, 'deleted_count' => $stmt->rowCount()]);
+                exit;
+                
+            case 'bulk_delete_expenses':
+                $ids = explode(',', $_POST['ids']);
+                $placeholders = str_repeat('?,', count($ids) - 1) . '?';
+                $stmt = $pdo->prepare("DELETE FROM expense_refunds WHERE id IN ($placeholders)");
+                $success = $stmt->execute($ids);
+                echo json_encode(['success' => $success, 'deleted_count' => $stmt->rowCount()]);
+                exit;
+                
+            case 'bulk_delete_work_orders':
+                $ids = explode(',', $_POST['ids']);
+                $placeholders = str_repeat('?,', count($ids) - 1) . '?';
+                $stmt = $pdo->prepare("DELETE FROM work_orders WHERE id IN ($placeholders)");
+                $success = $stmt->execute($ids);
+                echo json_encode(['success' => $success, 'deleted_count' => $stmt->rowCount()]);
+                exit;
+                
+            case 'bulk_delete_vehicles':
+                $ids = explode(',', $_POST['ids']);
+                $placeholders = str_repeat('?,', count($ids) - 1) . '?';
+                $stmt = $pdo->prepare("DELETE FROM vehicles WHERE id IN ($placeholders)");
+                $success = $stmt->execute($ids);
+                echo json_encode(['success' => $success, 'deleted_count' => $stmt->rowCount()]);
+                exit;
+                
+            case 'bulk_delete_customers':
+                $ids = explode(',', $_POST['ids']);
+                $placeholders = str_repeat('?,', count($ids) - 1) . '?';
+                $stmt = $pdo->prepare("DELETE FROM customers WHERE id IN ($placeholders)");
+                $success = $stmt->execute($ids);
+                echo json_encode(['success' => $success, 'deleted_count' => $stmt->rowCount()]);
+                exit;
+                
+            case 'bulk_delete_reservations':
+                $ids = explode(',', $_POST['ids']);
+                $placeholders = str_repeat('?,', count($ids) - 1) . '?';
+                $stmt = $pdo->prepare("DELETE FROM reservations WHERE id IN ($placeholders)");
+                $success = $stmt->execute($ids);
+                echo json_encode(['success' => $success, 'deleted_count' => $stmt->rowCount()]);
+                exit;
+                
             // Repairs handlers
             case 'create_repair':
                 $stmt = $pdo->prepare("INSERT INTO repair_history (vin, repair_date, repair_type, description, cost, vendor, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");

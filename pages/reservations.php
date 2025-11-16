@@ -3,7 +3,10 @@
     <h2>Reservation Management</h2>
     <p>Manage vehicle reservations and bookings</p>
     </div>
-    <button onclick="showAddReservationModal()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 5px; cursor: pointer; font-size: 1rem; font-weight: 500;">+ Add New Reservation</button>
+    <div style="display: flex; gap: 0.5rem;">
+        <button onclick="showAddReservationModal()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 5px; cursor: pointer; font-size: 1rem; font-weight: 500;">+ Add New Reservation</button>
+        <button id="bulkDeleteBtn" onclick="bulkDeleteReservations()" style="background: #dc3545; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 5px; cursor: pointer; font-size: 1rem; font-weight: 500; display: none;">🗑️ Delete Selected (<span id="selectedCount">0</span>)</button>
+    </div>
 </div>
 <?php if ($permissions->hasPermission('reservations', 'create')): ?>
 <div class="form-section">
@@ -70,6 +73,7 @@
     <table>
         <thead>
             <tr>
+                <th style="width: 40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
                 <th>Customer</th>
                 <th>Vehicle</th>
                 <th>Start Date</th>
@@ -91,6 +95,7 @@
             ");
             while ($row = $stmt->fetch()) {
                 echo "<tr>";
+                echo "<td><input type='checkbox' class='row-checkbox' value='" . $row['id'] . "' onchange='updateBulkDeleteButton()'></td>";
                 echo "<td>" . htmlspecialchars($row['customer_name']) . "</td>";
                 echo "<td>" . htmlspecialchars($row['vehicle_name']) . "</td>";
                 echo "<td>" . date('M j, Y', strtotime($row['start_date'])) . "</td>";
@@ -784,6 +789,69 @@ function confirmDeleteReservation() {
     .catch(error => {
         console.error('Error:', error);
         alert('An error occurred while deleting the reservation');
+    });
+}
+</script>
+
+<script>
+// Bulk Operations Functions
+function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+    });
+    updateBulkDeleteButton();
+}
+
+function updateBulkDeleteButton() {
+    const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+    const count = checkboxes.length;
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    const selectedCount = document.getElementById('selectedCount');
+    
+    if (count > 0) {
+        bulkDeleteBtn.style.display = 'block';
+        selectedCount.textContent = count;
+    } else {
+        bulkDeleteBtn.style.display = 'none';
+    }
+    
+    const allCheckboxes = document.querySelectorAll('.row-checkbox');
+    const selectAll = document.getElementById('selectAll');
+    selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+}
+
+function bulkDeleteReservations() {
+    const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+    const ids = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (ids.length === 0) {
+        alert('Please select at least one reservation to delete');
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to delete ${ids.length} reservation(s)?\n\nThis action cannot be undone.`)) {
+        return;
+    }
+    
+    fetch('index.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `ajax=1&action=bulk_delete_reservations&ids=${ids.join(',')}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Successfully deleted ${ids.length} reservation(s)`);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.message || 'Failed to delete reservations'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while deleting reservations');
     });
 }
 </script>

@@ -636,6 +636,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo json_encode(['success' => $success]);
                 exit;
                 
+            case 'bulk_delete_maintenance':
+                $ids = explode(',', $_POST['ids']);
+                $placeholders = str_repeat('?,', count($ids) - 1) . '?';
+                $stmt = $pdo->prepare("DELETE FROM maintenance_schedules WHERE id IN ($placeholders)");
+                $success = $stmt->execute($ids);
+                echo json_encode(['success' => $success, 'deleted_count' => $stmt->rowCount()]);
+                exit;
+                
             // Repairs handlers
             case 'create_repair':
                 $stmt = $pdo->prepare("INSERT INTO repair_history (vin, repair_date, repair_type, description, cost, vendor, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
@@ -678,6 +686,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("DELETE FROM repair_history WHERE id = ?");
                 $success = $stmt->execute([$_POST['id']]);
                 echo json_encode(['success' => $success]);
+                exit;
+                
+            case 'bulk_delete_repairs':
+                $ids = explode(',', $_POST['ids']);
+                $placeholders = str_repeat('?,', count($ids) - 1) . '?';
+                $stmt = $pdo->prepare("DELETE FROM repair_history WHERE id IN ($placeholders)");
+                $success = $stmt->execute($ids);
+                echo json_encode(['success' => $success, 'deleted_count' => $stmt->rowCount()]);
                 exit;
                 
             // Turo Accounts handlers

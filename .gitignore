@@ -106,4 +106,4 @@ composer.lock
 
 # Server logs and temporary files
 server.log
-*.tmp
+*.tmpservice_account_credentials.json

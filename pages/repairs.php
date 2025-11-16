@@ -3,7 +3,10 @@
         <h2>Repair History</h2>
         <p>Track vehicle repairs and maintenance history</p>
     </div>
-    <button onclick="showAddRepairModal()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 5px; cursor: pointer; font-size: 1rem; font-weight: 500;">+ Add New Repair</button>
+    <div style="display: flex; gap: 0.5rem;">
+        <button onclick="showAddRepairModal()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 5px; cursor: pointer; font-size: 1rem; font-weight: 500;">+ Add New Repair</button>
+        <button id="bulkDeleteBtn" onclick="bulkDeleteRepairs()" style="background: #dc3545; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 5px; cursor: pointer; font-size: 1rem; font-weight: 500; display: none;">🗑️ Delete Selected (<span id="selectedCount">0</span>)</button>
+    </div>
 </div>
 
 <div class="data-table">
@@ -11,6 +14,7 @@
     <table>
         <thead>
             <tr>
+                <th style="width: 40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
                 <th>Date</th>
                 <th>Vehicle</th>
                 <th>Mileage</th>
@@ -34,6 +38,7 @@
             while ($row = $stmt->fetch()) {
             ?>
             <tr>
+                <td><input type="checkbox" class="row-checkbox" value="<?php echo $row['id']; ?>" onchange="updateBulkDeleteButton()"></td>
                 <td><?php echo $row['repair_date'] ? date('M d, Y', strtotime($row['repair_date'])) : '-'; ?></td>
                 <td><?php echo htmlspecialchars($row['vehicle_name'] ?? 'Unknown'); ?></td>
                 <td><?php echo $row['mileage'] ? number_format($row['mileage']) : '-'; ?></td>
@@ -543,6 +548,68 @@ function submitEditRepair() {
     .catch(error => {
         console.error('Error:', error);
         alert('An error occurred while updating the repair');
+    });
+}
+
+// Bulk Operations Functions
+function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+    });
+    updateBulkDeleteButton();
+}
+
+function updateBulkDeleteButton() {
+    const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+    const count = checkboxes.length;
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    const selectedCount = document.getElementById('selectedCount');
+    
+    if (count > 0) {
+        bulkDeleteBtn.style.display = 'block';
+        selectedCount.textContent = count;
+    } else {
+        bulkDeleteBtn.style.display = 'none';
+    }
+    
+    // Update "Select All" checkbox state
+    const allCheckboxes = document.querySelectorAll('.row-checkbox');
+    const selectAll = document.getElementById('selectAll');
+    selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+}
+
+function bulkDeleteRepairs() {
+    const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+    const ids = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (ids.length === 0) {
+        alert('Please select at least one repair to delete');
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to delete ${ids.length} repair record(s)?\n\nThis action cannot be undone.`)) {
+        return;
+    }
+    
+    fetch('index.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `ajax=1&action=bulk_delete_repairs&ids=${ids.join(',')}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Successfully deleted ${ids.length} repair record(s)`);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.message || 'Failed to delete repairs'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while deleting repairs');
     });
 }
 </script>

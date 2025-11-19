@@ -393,6 +393,407 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
             $account = $stmt->fetch(PDO::FETCH_ASSOC);
             echo json_encode(['success' => true, 'account' => $account]);
             exit;
+            // Get Vehicle Details with all related data
+            case 'get_vehicle_details':
+                try {
+                    $vin = $_GET['vin'] ?? '';
+                    
+                    // Get vehicle info
+                    $stmt = $pdo->prepare("SELECT * FROM vehicles WHERE vin = ?");
+                    $stmt->execute([$vin]);
+                    $vehicle = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if (!$vehicle) {
+                        // Toast notification
+        echo "<script>if(typeof showToast === 'function') showToast('Vehicle not found', 'error');</script>";
+        echo json_encode(['success' => false, 'message' => 'Vehicle not found']);
+                        exit;
+                    }
+                    
+                    // Get owner info
+                    $stmt = $pdo->prepare("
+                        SELECT o.*, v.vin 
+                        FROM vehicle_owners o 
+                        JOIN vehicles v ON o.vin = v.vin 
+                        WHERE v.vin = ? 
+                        ORDER BY o.created_at DESC 
+                        LIMIT 1
+                    ");
+                    $stmt->execute([$vin]);
+                    $owner = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    // Get maintenance history (last 10)
+                    $stmt = $pdo->prepare("
+                        SELECT m.*, v.make, v.model 
+                        FROM maintenance_schedules m 
+                        JOIN vehicles v ON m.vehicle_id = v.id 
+                        WHERE m.vehicle_id = ? 
+                        ORDER BY m.scheduled_date DESC 
+                        LIMIT 10
+                    ");
+                    $stmt->execute([$vin]);
+                    $maintenance = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Get repair history (last 10)
+                    $stmt = $pdo->prepare("
+                        SELECT * FROM repair_history 
+                        WHERE vehicle_id = ? 
+                        ORDER BY repair_date DESC 
+                        LIMIT 10
+                    ");
+                    $stmt->execute([$vin]);
+                    $repairs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Get active rental_history
+                    $stmt = $pdo->prepare("
+                        SELECT r.*, CONCAT(c.first_name, ' ', c.last_name) as customer_name, c.email as customer_email, c.phone as customer_phone
+                        FROM rental_history r 
+                        JOIN customers c ON r.guest_name = c.turo_guest_name 
+                        WHERE r.vehicle_identifier = ? AND r.trip_status IN ('confirmed', 'active')
+                        ORDER BY r.trip_start DESC
+                    ");
+                    $stmt->execute([$vin]);
+                    $rental_history = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Get recent expenses (last 10)
+                    $stmt = $pdo->prepare("
+                        SELECT ft.* FROM financial_transactions ft
+                        JOIN rental_history rh ON ft.trip_id = rh.trip_id
+                        WHERE rh.vehicle_identifier = ?
+                        ORDER BY ft.transaction_date DESC 
+                        LIMIT 10
+                    ");
+                    $stmt->execute([$vin]);
+                    $expenses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Calculate statistics
+                    $stmt = $pdo->prepare("
+                        SELECT 
+                            COUNT(*) as total_trips,
+                            SUM(total_cost) as total_revenue,
+                            AVG(DATEDIFF(end_date, start_date)) as avg_trip_days
+                        FROM rental_history 
+                        WHERE vehicle_identifier = ? AND trip_status = 'completed'
+                    ");
+                    $stmt->execute([$vin]);
+                    $stats = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    // Get total expenses
+                    $stmt = $pdo->prepare("SELECT SUM(amount) as total_expenses FROM financial_transactions ft JOIN rental_history rh ON ft.trip_id = rh.trip_id WHERE rh.vehicle_identifier = ?");
+                    $stmt->execute([$vin]);
+                    $expense_total = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $stats['total_expenses'] = $expense_total['total_expenses'] ?? 0;
+                    $stats['net_profit'] = ($stats['total_revenue'] ?? 0) - ($stats['total_expenses'] ?? 0);
+                    
+                    echo json_encode([
+                        'success' => true,
+                        'vehicle' => $vehicle,
+                        'owner' => $owner,
+                        'maintenance' => $maintenance,
+                        'repairs' => $repairs,
+                        'rental_history' => $rental_history,
+                        'expenses' => $expenses,
+                        'statistics' => $stats
+                    ]);
+                } catch (PDOException $e) {
+                    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+                }
+                exit;
+            
+            // Get Owner Details with all owned vehicles
+            case 'get_owner_details':
+                try {
+                    $owner_id = $_GET['id'] ?? '';
+                    
+                    // Get owner info
+                    $stmt = $pdo->prepare("SELECT * FROM vehicle_owners WHERE id = ?");
+                    $stmt->execute([$owner_id]);
+                    $owner = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if (!$owner) {
+                        // Toast notification
+        echo "<script>if(typeof showToast === 'function') showToast('Owner not found', 'error');</script>";
+        echo json_encode(['success' => false, 'message' => 'Owner not found']);
+                        exit;
+                    }
+                    
+                    // Get all owned vehicles
+                    $stmt = $pdo->prepare("
+                        SELECT v.*, o.created_at, o.ownership_end_date, o.ownership_type
+                        FROM vehicles v 
+                        JOIN owners o ON v.vin = o.vin 
+                        WHERE o.owner_name = ? 
+                        ORDER BY o.created_at DESC
+                    ");
+                    $stmt->execute([$owner['owner_name']]);
+                    $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Calculate statistics
+                    $stats = [
+                        'total_vehicles' => count($vehicles),
+                        'active_vehicles' => 0,
+                        'total_value' => 0
+                    ];
+                    
+                    foreach ($vehicles as $v) {
+                        if (empty($v['ownership_end_date'])) {
+                            $stats['active_vehicles']++;
+                        }
+                        $stats['total_value'] += $v['daily_rate'] ?? 0;
+                    }
+                    
+                    // Get total revenue from all owned vehicles
+                    $vins = array_column($vehicles, 'vin');
+                    if (!empty($vins)) {
+                        $placeholders = str_repeat('?,', count($vins) - 1) . '?';
+                        $stmt = $pdo->prepare("
+                            SELECT SUM(total_cost) as total_revenue 
+                            FROM rental_history 
+                            WHERE vin IN ($placeholders) AND status = 'completed'
+                        ");
+                        $stmt->execute($vins);
+                        $revenue = $stmt->fetch(PDO::FETCH_ASSOC);
+                        $stats['total_revenue'] = $revenue['total_revenue'] ?? 0;
+                    } else {
+                        $stats['total_revenue'] = 0;
+                    }
+                    
+                    echo json_encode([
+                        'success' => true,
+                        'owner' => $owner,
+                        'vehicles' => $vehicles,
+                        'statistics' => $stats
+                    ]);
+                } catch (PDOException $e) {
+                    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+                }
+                exit;
+            
+            // Get Customer Details with reservation history
+            case 'get_customer_details':
+                try {
+                    $customer_id = $_GET['id'] ?? '';
+                    
+                    // Get customer info
+                    $stmt = $pdo->prepare("SELECT * FROM customers WHERE id = ?");
+                    $stmt->execute([$customer_id]);
+                    $customer = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if (!$customer) {
+                        // Toast notification
+        echo "<script>if(typeof showToast === 'function') showToast('Customer not found', 'error');</script>";
+        echo json_encode(['success' => false, 'message' => 'Customer not found']);
+                        exit;
+                    }
+                    
+                    $guest_name = $customer['turo_guest_name'] ?? '';
+                    
+                    // Get all rental_history
+                    $stmt = $pdo->prepare("
+                        SELECT r.*, v.make, v.model, v.year, v.color, v.license_plate
+                        FROM rental_history r 
+                        JOIN vehicles v ON r.vehicle_identifier = v.vin 
+                        WHERE r.guest_name = ? 
+                        ORDER BY r.trip_start DESC
+                    ");
+                    $stmt->execute([$guest_name]);
+                    $rental_history = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Calculate statistics
+                    $stmt = $pdo->prepare("
+                        SELECT 
+                            COUNT(*) as total_rental_history,
+                            SUM(CASE WHEN trip_status = 'completed' THEN 1 ELSE 0 END) as completed_trips,
+                            SUM(CASE WHEN trip_status = 'active' THEN 1 ELSE 0 END) as active_trips,
+                            SUM(CASE WHEN trip_status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_trips,
+                            SUM(trip_price) as total_spent,
+                            AVG(trip_price) as avg_trip_cost,
+                            MIN(trip_start) as first_rental,
+                            MAX(trip_start) as last_rental
+                        FROM rental_history 
+                        WHERE guest_name = ?
+                    ");
+                    $stmt->execute([$guest_name]);
+                    $stats = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    // Get favorite vehicles (most rented)
+                    $stmt = $pdo->prepare("
+                        SELECT v.make, v.model, v.vin, COUNT(*) as rental_count
+                        FROM rental_history r
+                        JOIN vehicles v ON r.vehicle_identifier = v.vin
+                        WHERE r.guest_name = ?
+                        GROUP BY v.vin
+                        ORDER BY rental_count DESC
+                        LIMIT 3
+                    ");
+                    $stmt->execute([$guest_name]);
+                    $favorite_vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    echo json_encode([
+                        'success' => true,
+                        'customer' => $customer,
+                        'rental_history' => $rental_history,
+                        'statistics' => $stats,
+                        'favorite_vehicles' => $favorite_vehicles
+                    ]);
+                } catch (PDOException $e) {
+                    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+                }
+                exit;
+            
+            // Get Reservation Details with customer and vehicle info
+            case 'get_reservation_details':
+                try {
+                    $reservation_id = $_GET['id'] ?? '';
+                    
+                    // Get reservation info
+                    $stmt = $pdo->prepare("SELECT * FROM rental_history WHERE reservation_id = ?");
+                    $stmt->execute([$reservation_id]);
+                    $reservation = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if (!$reservation) {
+                        // Toast notification
+        echo "<script>if(typeof showToast === 'function') showToast('Reservation not found', 'error');</script>";
+        echo json_encode(['success' => false, 'message' => 'Reservation not found']);
+                        exit;
+                    }
+                    
+                    // Get customer info
+                    $stmt = $pdo->prepare("SELECT * FROM customers WHERE turo_guest_name = ?");
+                    $stmt->execute([$reservation['guest_name']]);
+                    $customer = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    // Get vehicle info
+                    $stmt = $pdo->prepare("SELECT * FROM vehicles WHERE vin = ?");
+                    $stmt->execute([$reservation['vehicle_identifier']]);
+                    $vehicle = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    // Get customer's other rental_history with this vehicle
+                    $stmt = $pdo->prepare("
+                        SELECT * FROM rental_history 
+                        WHERE guest_name = ? AND vehicle_identifier = ? AND reservation_id != ?
+                        ORDER BY trip_start DESC
+                        LIMIT 5
+                    ");
+                    $stmt->execute([$reservation['guest_name'], $reservation['vehicle_identifier'], $reservation_id]);
+                    $previous_rentals = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Calculate rental duration and costs
+                    $start = new DateTime($reservation['trip_start']);
+                    $end = new DateTime($reservation['trip_end']);
+                    $duration = $start->diff($end)->days;
+                    
+                    $details = [
+                        'duration_days' => $duration,
+                        'daily_rate' => $vehicle['daily_rate'] ?? 0,
+                        'subtotal' => $duration * ($vehicle['daily_rate'] ?? 0),
+                        'total' => $reservation['trip_price'] ?? 0
+                    ];
+                    
+                    echo json_encode([
+                        'success' => true,
+                        'reservation' => $reservation,
+                        'customer' => $customer,
+                        'vehicle' => $vehicle,
+                        'previous_rentals' => $previous_rentals,
+                        'details' => $details
+                    ]);
+                } catch (PDOException $e) {
+                    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+                }
+                exit;
+            
+            // Get Maintenance Details
+            case 'get_maintenance_details':
+                try {
+                    $maintenance_id = $_GET['id'] ?? '';
+                    
+                    // Get maintenance info
+                    $stmt = $pdo->prepare("SELECT * FROM maintenance_schedules WHERE id = ?");
+                    $stmt->execute([$maintenance_id]);
+                    $maintenance = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if (!$maintenance) {
+                        // Toast notification
+        echo "<script>if(typeof showToast === 'function') showToast('Maintenance record not found', 'error');</script>";
+        echo json_encode(['success' => false, 'message' => 'Maintenance record not found']);
+                        exit;
+                    }
+                    
+                    // Get vehicle info
+                    $stmt = $pdo->prepare("SELECT * FROM vehicles WHERE vin = ?");
+                    $stmt->execute([$maintenance['vin']]);
+                    $vehicle = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    // Get other maintenance for this vehicle
+                    $stmt = $pdo->prepare("
+                        SELECT * FROM maintenance_schedules 
+                        WHERE vin = ? AND id != ?
+                        ORDER BY scheduled_date DESC
+                        LIMIT 10
+                    ");
+                    $stmt->execute([$maintenance['vin'], $maintenance_id]);
+                    $other_maintenance = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    echo json_encode([
+                        'success' => true,
+                        'maintenance' => $maintenance,
+                        'vehicle' => $vehicle,
+                        'other_maintenance' => $other_maintenance
+                    ]);
+                } catch (PDOException $e) {
+                    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+                }
+                exit;
+            
+            // Get Repair Details
+            case 'get_repair_details':
+                try {
+                    $repair_id = $_GET['id'] ?? '';
+                    
+                    // Get repair info
+                    $stmt = $pdo->prepare("SELECT * FROM repair_history WHERE id = ?");
+                    $stmt->execute([$repair_id]);
+                    $repair = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if (!$repair) {
+                        // Toast notification
+        echo "<script>if(typeof showToast === 'function') showToast('Repair record not found', 'error');</script>";
+        echo json_encode(['success' => false, 'message' => 'Repair record not found']);
+                        exit;
+                    }
+                    
+                    // Get vehicle info
+                    $stmt = $pdo->prepare("SELECT * FROM vehicles WHERE vin = ?");
+                    $stmt->execute([$repair['vin']]);
+                    $vehicle = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    // Get other repairs for this vehicle
+                    $stmt = $pdo->prepare("
+                        SELECT * FROM repair_history 
+                        WHERE vehicle_id = ? AND id != ?
+                        ORDER BY repair_date DESC
+                        LIMIT 10
+                    ");
+                    $stmt->execute([$repair['vin'], $repair_id]);
+                    $other_repairs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Calculate total repair costs for this vehicle
+                    $stmt = $pdo->prepare("SELECT SUM(cost) as total_cost FROM repair_history WHERE vehicle_id = ?");
+                    $stmt->execute([$repair['vin']]);
+                    $cost_total = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    echo json_encode([
+                        'success' => true,
+                        'repair' => $repair,
+                        'vehicle' => $vehicle,
+                        'other_repairs' => $other_repairs,
+                        'total_repair_cost' => $cost_total['total_cost'] ?? 0
+                    ]);
+                } catch (PDOException $e) {
+                    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+                }
+                exit;
     }
 }
 
@@ -901,410 +1302,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo json_encode(['success' => $success]);
                 exit;
                 
-            // ============================================
-            // DETAILS MODAL AJAX HANDLERS
-            // Comprehensive data retrieval with cross-relationships
-            // ============================================
-            
-            // Get Vehicle Details with all related data
-            case 'get_vehicle_details':
-                try {
-                    $vin = $_GET['vin'] ?? '';
-                    
-                    // Get vehicle info
-                    $stmt = $pdo->prepare("SELECT * FROM vehicles WHERE vin = ?");
-                    $stmt->execute([$vin]);
-                    $vehicle = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
-                    if (!$vehicle) {
-                        // Toast notification
-        echo "<script>if(typeof showToast === 'function') showToast('Vehicle not found', 'error');</script>";
-        echo json_encode(['success' => false, 'message' => 'Vehicle not found']);
-                        exit;
-                    }
-                    
-                    // Get owner info
-                    $stmt = $pdo->prepare("
-                        SELECT o.*, v.vin 
-                        FROM vehicle_owners o 
-                        JOIN vehicles v ON o.vin = v.vin 
-                        WHERE v.vin = ? 
-                        ORDER BY o.created_at DESC 
-                        LIMIT 1
-                    ");
-                    $stmt->execute([$vin]);
-                    $owner = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
-                    // Get maintenance history (last 10)
-                    $stmt = $pdo->prepare("
-                        SELECT m.*, v.make, v.model 
-                        FROM maintenance_schedules m 
-                        JOIN vehicles v ON m.vehicle_id = v.id 
-                        WHERE m.vehicle_id = ? 
-                        ORDER BY m.scheduled_date DESC 
-                        LIMIT 10
-                    ");
-                    $stmt->execute([$vin]);
-                    $maintenance = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    // Get repair history (last 10)
-                    $stmt = $pdo->prepare("
-                        SELECT * FROM repair_history 
-                        WHERE vehicle_id = ? 
-                        ORDER BY repair_date DESC 
-                        LIMIT 10
-                    ");
-                    $stmt->execute([$vin]);
-                    $repairs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    // Get active rental_history
-                    $stmt = $pdo->prepare("
-                        SELECT r.*, CONCAT(c.first_name, ' ', c.last_name) as customer_name, c.email as customer_email, c.phone as customer_phone
-                        FROM rental_history r 
-                        JOIN customers c ON r.guest_name = c.turo_guest_name 
-                        WHERE r.vehicle_identifier = ? AND r.trip_status IN ('confirmed', 'active')
-                        ORDER BY r.trip_start DESC
-                    ");
-                    $stmt->execute([$vin]);
-                    $rental_history = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    // Get recent expenses (last 10)
-                    $stmt = $pdo->prepare("
-                        SELECT ft.* FROM financial_transactions ft
-                        JOIN rental_history rh ON ft.trip_id = rh.trip_id
-                        WHERE rh.vehicle_identifier = ?
-                        ORDER BY ft.transaction_date DESC 
-                        LIMIT 10
-                    ");
-                    $stmt->execute([$vin]);
-                    $expenses = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    // Calculate statistics
-                    $stmt = $pdo->prepare("
-                        SELECT 
-                            COUNT(*) as total_trips,
-                            SUM(total_cost) as total_revenue,
-                            AVG(DATEDIFF(end_date, start_date)) as avg_trip_days
-                        FROM rental_history 
-                        WHERE vehicle_identifier = ? AND trip_status = 'completed'
-                    ");
-                    $stmt->execute([$vin]);
-                    $stats = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
-                    // Get total expenses
-                    $stmt = $pdo->prepare("SELECT SUM(amount) as total_expenses FROM financial_transactions ft JOIN rental_history rh ON ft.trip_id = rh.trip_id WHERE rh.vehicle_identifier = ?");
-                    $stmt->execute([$vin]);
-                    $expense_total = $stmt->fetch(PDO::FETCH_ASSOC);
-                    $stats['total_expenses'] = $expense_total['total_expenses'] ?? 0;
-                    $stats['net_profit'] = ($stats['total_revenue'] ?? 0) - ($stats['total_expenses'] ?? 0);
-                    
-                    echo json_encode([
-                        'success' => true,
-                        'vehicle' => $vehicle,
-                        'owner' => $owner,
-                        'maintenance' => $maintenance,
-                        'repairs' => $repairs,
-                        'rental_history' => $rental_history,
-                        'expenses' => $expenses,
-                        'statistics' => $stats
-                    ]);
-                } catch (PDOException $e) {
-                    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
-                }
-                exit;
-            
-            // Get Owner Details with all owned vehicles
-            case 'get_owner_details':
-                try {
-                    $owner_id = $_GET['id'] ?? '';
-                    
-                    // Get owner info
-                    $stmt = $pdo->prepare("SELECT * FROM vehicle_owners WHERE id = ?");
-                    $stmt->execute([$owner_id]);
-                    $owner = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
-                    if (!$owner) {
-                        // Toast notification
-        echo "<script>if(typeof showToast === 'function') showToast('Owner not found', 'error');</script>";
-        echo json_encode(['success' => false, 'message' => 'Owner not found']);
-                        exit;
-                    }
-                    
-                    // Get all owned vehicles
-                    $stmt = $pdo->prepare("
-                        SELECT v.*, o.created_at, o.ownership_end_date, o.ownership_type
-                        FROM vehicles v 
-                        JOIN owners o ON v.vin = o.vin 
-                        WHERE o.owner_name = ? 
-                        ORDER BY o.created_at DESC
-                    ");
-                    $stmt->execute([$owner['owner_name']]);
-                    $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    // Calculate statistics
-                    $stats = [
-                        'total_vehicles' => count($vehicles),
-                        'active_vehicles' => 0,
-                        'total_value' => 0
-                    ];
-                    
-                    foreach ($vehicles as $v) {
-                        if (empty($v['ownership_end_date'])) {
-                            $stats['active_vehicles']++;
-                        }
-                        $stats['total_value'] += $v['daily_rate'] ?? 0;
-                    }
-                    
-                    // Get total revenue from all owned vehicles
-                    $vins = array_column($vehicles, 'vin');
-                    if (!empty($vins)) {
-                        $placeholders = str_repeat('?,', count($vins) - 1) . '?';
-                        $stmt = $pdo->prepare("
-                            SELECT SUM(total_cost) as total_revenue 
-                            FROM rental_history 
-                            WHERE vin IN ($placeholders) AND status = 'completed'
-                        ");
-                        $stmt->execute($vins);
-                        $revenue = $stmt->fetch(PDO::FETCH_ASSOC);
-                        $stats['total_revenue'] = $revenue['total_revenue'] ?? 0;
-                    } else {
-                        $stats['total_revenue'] = 0;
-                    }
-                    
-                    echo json_encode([
-                        'success' => true,
-                        'owner' => $owner,
-                        'vehicles' => $vehicles,
-                        'statistics' => $stats
-                    ]);
-                } catch (PDOException $e) {
-                    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
-                }
-                exit;
-            
-            // Get Customer Details with reservation history
-            case 'get_customer_details':
-                try {
-                    $guest_name = $_GET['id'] ?? '';
-                    
-                    // Get customer info
-                    $stmt = $pdo->prepare("SELECT * FROM customers WHERE id = ?");
-                    $stmt->execute([$guest_name]);
-                    $customer = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
-                    if (!$customer) {
-                        // Toast notification
-        echo "<script>if(typeof showToast === 'function') showToast('Customer not found', 'error');</script>";
-        echo json_encode(['success' => false, 'message' => 'Customer not found']);
-                        exit;
-                    }
-                    
-                    // Get all rental_history
-                    $stmt = $pdo->prepare("
-                        SELECT r.*, v.make, v.model, v.year, v.color, v.license_plate
-                        FROM rental_history r 
-                        JOIN vehicles v ON r.vin = v.vin 
-                        WHERE r.guest_name = ? 
-                        ORDER BY r.trip_start DESC
-                    ");
-                    $stmt->execute([$guest_name]);
-                    $rental_history = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    // Calculate statistics
-                    $stmt = $pdo->prepare("
-                        SELECT 
-                            COUNT(*) as total_rental_history,
-                            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_trips,
-                            SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_trips,
-                            SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_trips,
-                            SUM(total_cost) as total_spent,
-                            AVG(total_cost) as avg_trip_cost,
-                            MIN(start_date) as first_rental,
-                            MAX(start_date) as last_rental
-                        FROM rental_history 
-                        WHERE guest_name = ?
-                    ");
-                    $stmt->execute([$guest_name]);
-                    $stats = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
-                    // Get favorite vehicles (most rented)
-                    $stmt = $pdo->prepare("
-                        SELECT v.make, v.model, v.vin, COUNT(*) as rental_count
-                        FROM rental_history r
-                        JOIN vehicles v ON r.vin = v.vin
-                        WHERE r.guest_name = ?
-                        GROUP BY v.vin
-                        ORDER BY rental_count DESC
-                        LIMIT 3
-                    ");
-                    $stmt->execute([$guest_name]);
-                    $favorite_vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    echo json_encode([
-                        'success' => true,
-                        'customer' => $customer,
-                        'rental_history' => $rental_history,
-                        'statistics' => $stats,
-                        'favorite_vehicles' => $favorite_vehicles
-                    ]);
-                } catch (PDOException $e) {
-                    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
-                }
-                exit;
-            
-            // Get Reservation Details with customer and vehicle info
-            case 'get_reservation_details':
-                try {
-                    $reservation_id = $_GET['id'] ?? '';
-                    
-                    // Get reservation info
-                    $stmt = $pdo->prepare("SELECT * FROM rental_history WHERE id = ?");
-                    $stmt->execute([$reservation_id]);
-                    $reservation = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
-                    if (!$reservation) {
-                        // Toast notification
-        echo "<script>if(typeof showToast === 'function') showToast('Reservation not found', 'error');</script>";
-        echo json_encode(['success' => false, 'message' => 'Reservation not found']);
-                        exit;
-                    }
-                    
-                    // Get customer info
-                    $stmt = $pdo->prepare("SELECT * FROM customers WHERE id = ?");
-                    $stmt->execute([$reservation['guest_name']]);
-                    $customer = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
-                    // Get vehicle info
-                    $stmt = $pdo->prepare("SELECT * FROM vehicles WHERE vin = ?");
-                    $stmt->execute([$reservation['vin']]);
-                    $vehicle = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
-                    // Get customer's other rental_history with this vehicle
-                    $stmt = $pdo->prepare("
-                        SELECT * FROM rental_history 
-                        WHERE guest_name = ? AND vin = ? AND id != ?
-                        ORDER BY start_date DESC
-                        LIMIT 5
-                    ");
-                    $stmt->execute([$reservation['guest_name'], $reservation['vin'], $reservation_id]);
-                    $previous_rentals = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    // Calculate rental duration and costs
-                    $start = new DateTime($reservation['start_date']);
-                    $end = new DateTime($reservation['end_date']);
-                    $duration = $start->diff($end)->days;
-                    
-                    $details = [
-                        'duration_days' => $duration,
-                        'daily_rate' => $vehicle['daily_rate'] ?? 0,
-                        'subtotal' => $duration * ($vehicle['daily_rate'] ?? 0),
-                        'total' => $reservation['total_cost'] ?? 0
-                    ];
-                    
-                    echo json_encode([
-                        'success' => true,
-                        'reservation' => $reservation,
-                        'customer' => $customer,
-                        'vehicle' => $vehicle,
-                        'previous_rentals' => $previous_rentals,
-                        'details' => $details
-                    ]);
-                } catch (PDOException $e) {
-                    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
-                }
-                exit;
-            
-            // Get Maintenance Details
-            case 'get_maintenance_details':
-                try {
-                    $maintenance_id = $_GET['id'] ?? '';
-                    
-                    // Get maintenance info
-                    $stmt = $pdo->prepare("SELECT * FROM maintenance_schedules WHERE id = ?");
-                    $stmt->execute([$maintenance_id]);
-                    $maintenance = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
-                    if (!$maintenance) {
-                        // Toast notification
-        echo "<script>if(typeof showToast === 'function') showToast('Maintenance record not found', 'error');</script>";
-        echo json_encode(['success' => false, 'message' => 'Maintenance record not found']);
-                        exit;
-                    }
-                    
-                    // Get vehicle info
-                    $stmt = $pdo->prepare("SELECT * FROM vehicles WHERE vin = ?");
-                    $stmt->execute([$maintenance['vin']]);
-                    $vehicle = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
-                    // Get other maintenance for this vehicle
-                    $stmt = $pdo->prepare("
-                        SELECT * FROM maintenance_schedules 
-                        WHERE vin = ? AND id != ?
-                        ORDER BY scheduled_date DESC
-                        LIMIT 10
-                    ");
-                    $stmt->execute([$maintenance['vin'], $maintenance_id]);
-                    $other_maintenance = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    echo json_encode([
-                        'success' => true,
-                        'maintenance' => $maintenance,
-                        'vehicle' => $vehicle,
-                        'other_maintenance' => $other_maintenance
-                    ]);
-                } catch (PDOException $e) {
-                    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
-                }
-                exit;
-            
-            // Get Repair Details
-            case 'get_repair_details':
-                try {
-                    $repair_id = $_GET['id'] ?? '';
-                    
-                    // Get repair info
-                    $stmt = $pdo->prepare("SELECT * FROM repair_history WHERE id = ?");
-                    $stmt->execute([$repair_id]);
-                    $repair = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
-                    if (!$repair) {
-                        // Toast notification
-        echo "<script>if(typeof showToast === 'function') showToast('Repair record not found', 'error');</script>";
-        echo json_encode(['success' => false, 'message' => 'Repair record not found']);
-                        exit;
-                    }
-                    
-                    // Get vehicle info
-                    $stmt = $pdo->prepare("SELECT * FROM vehicles WHERE vin = ?");
-                    $stmt->execute([$repair['vin']]);
-                    $vehicle = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
-                    // Get other repairs for this vehicle
-                    $stmt = $pdo->prepare("
-                        SELECT * FROM repair_history 
-                        WHERE vehicle_id = ? AND id != ?
-                        ORDER BY repair_date DESC
-                        LIMIT 10
-                    ");
-                    $stmt->execute([$repair['vin'], $repair_id]);
-                    $other_repairs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    // Calculate total repair costs for this vehicle
-                    $stmt = $pdo->prepare("SELECT SUM(cost) as total_cost FROM repair_history WHERE vehicle_id = ?");
-                    $stmt->execute([$repair['vin']]);
-                    $cost_total = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
-                    echo json_encode([
-                        'success' => true,
-                        'repair' => $repair,
-                        'vehicle' => $vehicle,
-                        'other_repairs' => $other_repairs,
-                        'total_repair_cost' => $cost_total['total_cost'] ?? 0
-                    ]);
-                } catch (PDOException $e) {
-                    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
-                }
-                exit;
                 
             case 'get_maintenance':
                 $stmt = $pdo->prepare("SELECT * FROM maintenance_schedules WHERE id = ?");
@@ -3097,7 +3094,7 @@ function showVehicleDetails(vin) {
     document.getElementById('vehicleDetailsBody').innerHTML = '<div class="details-loading">Loading vehicle details...</div>';
     
     // Fetch vehicle details
-    fetch('index.php?action=get_vehicle_details&vin=' + encodeURIComponent(vin))
+    fetch('index.php?ajax=1&action=get_vehicle_details&vin=' + encodeURIComponent(vin))
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -3544,7 +3541,7 @@ function showOwnerDetails(ownerId) {
     document.getElementById('ownerDetailsModal').style.display = 'block';
     document.getElementById('ownerDetailsBody').innerHTML = '<div class="details-loading">Loading owner details...</div>';
     
-    fetch('index.php?action=get_owner_details&id=' + ownerId)
+    fetch('index.php?ajax=1&action=get_owner_details&id=' + ownerId)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -3687,7 +3684,7 @@ function showCustomerDetails(customerId) {
     document.getElementById('customerDetailsModal').style.display = 'block';
     document.getElementById('customerDetailsBody').innerHTML = '<div class="details-loading">Loading customer details...</div>';
     
-    fetch('index.php?action=get_customer_details&id=' + customerId)
+    fetch('index.php?ajax=1&action=get_customer_details&id=' + customerId)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -3883,7 +3880,7 @@ function showReservationDetails(reservationId) {
     document.getElementById('reservationDetailsModal').style.display = 'block';
     document.getElementById('reservationDetailsBody').innerHTML = '<div class="details-loading">Loading reservation details...</div>';
     
-    fetch('index.php?action=get_reservation_details&id=' + reservationId)
+    fetch('index.php?ajax=1&action=get_reservation_details&id=' + reservationId)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -4082,7 +4079,7 @@ function showMaintenanceDetails(maintenanceId) {
     document.getElementById('maintenanceDetailsModal').style.display = 'block';
     document.getElementById('maintenanceDetailsBody').innerHTML = '<div class="details-loading">Loading maintenance details...</div>';
     
-    fetch('index.php?action=get_maintenance_details&id=' + maintenanceId)
+    fetch('index.php?ajax=1&action=get_maintenance_details&id=' + maintenanceId)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -4234,7 +4231,7 @@ function showRepairDetails(repairId) {
     document.getElementById('repairDetailsModal').style.display = 'block';
     document.getElementById('repairDetailsBody').innerHTML = '<div class="details-loading">Loading repair details...</div>';
     
-    fetch('index.php?action=get_repair_details&id=' + repairId)
+    fetch('index.php?ajax=1&action=get_repair_details&id=' + repairId)
         .then(response => response.json())
         .then(data => {
             if (data.success) {

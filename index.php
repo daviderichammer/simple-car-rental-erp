@@ -269,7 +269,7 @@ if (isset($_GET['action'])) {
                 SELECT r.*, c.name as customer_name, c.email as customer_email
                 FROM rental_history r 
                 JOIN customers c ON r.guest_name = c.turo_guest_name 
-                WHERE r.vin = ? AND r.status IN ('confirmed', 'active')
+                WHERE r.vehicle_identifier = ? AND r.status IN ('confirmed', 'active')
                 ORDER BY r.start_date DESC
             ");
             $stmt->execute([$vin]);
@@ -318,7 +318,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     
     switch ($_GET['action']) {
         case 'get_maintenance':
-            $stmt = $pdo->prepare("SELECT * FROM maintenance_schedules_schedules WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT * FROM maintenance_schedules WHERE id = ?");
             $stmt->execute([$_GET['id']]);
             $maintenance = $stmt->fetch(PDO::FETCH_ASSOC);
             echo json_encode(['success' => true, 'maintenance' => $maintenance]);
@@ -611,7 +611,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
                 
             case 'get_maintenance':
-                $stmt = $pdo->prepare("SELECT * FROM maintenance_schedules_schedules WHERE id = ?");
+                $stmt = $pdo->prepare("SELECT * FROM maintenance_schedules WHERE id = ?");
                 $stmt->execute([$_GET['id']]);
                 $maintenance = $stmt->fetch(PDO::FETCH_ASSOC);
                 echo json_encode(['success' => true, 'maintenance' => $maintenance]);
@@ -631,7 +631,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
                 
             case 'delete_maintenance':
-                $stmt = $pdo->prepare("DELETE FROM maintenance_schedules_schedules WHERE id = ?");
+                $stmt = $pdo->prepare("DELETE FROM maintenance_schedules WHERE id = ?");
                 $success = $stmt->execute([$_POST['id']]);
                 echo json_encode(['success' => $success]);
                 exit;
@@ -639,7 +639,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'bulk_delete_maintenance':
                 $ids = explode(',', $_POST['ids']);
                 $placeholders = str_repeat('?,', count($ids) - 1) . '?';
-                $stmt = $pdo->prepare("DELETE FROM maintenance_schedules_schedules WHERE id IN ($placeholders)");
+                $stmt = $pdo->prepare("DELETE FROM maintenance_schedules WHERE id IN ($placeholders)");
                 $success = $stmt->execute($ids);
                 echo json_encode(['success' => $success, 'deleted_count' => $stmt->rowCount()]);
                 exit;
@@ -842,7 +842,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
                 
             case 'delete_expense':
-                $stmt = $pdo->prepare("DELETE FROM expense_history WHERE id = ?");
+                $stmt = $pdo->prepare("DELETE FROM financial_transactions WHERE id = ?");
                 $success = $stmt->execute([$_POST['id']]);
                 echo json_encode(['success' => $success]);
                 exit;
@@ -962,7 +962,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         SELECT r.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone
                         FROM rental_history r 
                         JOIN customers c ON r.guest_name = c.turo_guest_name 
-                        WHERE r.vin = ? AND r.status IN ('confirmed', 'active')
+                        WHERE r.vehicle_identifier = ? AND r.status IN ('confirmed', 'active')
                         ORDER BY r.start_date DESC
                     ");
                     $stmt->execute([$vin]);
@@ -970,7 +970,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     // Get recent expenses (last 10)
                     $stmt = $pdo->prepare("
-                        SELECT * FROM expense_history 
+                        SELECT * FROM financial_transactions 
                         WHERE vin = ? 
                         ORDER BY date DESC 
                         LIMIT 10
@@ -991,7 +991,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stats = $stmt->fetch(PDO::FETCH_ASSOC);
                     
                     // Get total expenses
-                    $stmt = $pdo->prepare("SELECT SUM(amount) as total_expenses FROM expense_history WHERE vin = ?");
+                    $stmt = $pdo->prepare("SELECT SUM(amount) as total_expenses FROM financial_transactions WHERE vin = ?");
                     $stmt->execute([$vin]);
                     $expense_total = $stmt->fetch(PDO::FETCH_ASSOC);
                     $stats['total_expenses'] = $expense_total['total_expenses'] ?? 0;
@@ -1289,7 +1289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $other_repairs = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     
                     // Calculate total repair costs for this vehicle
-                    $stmt = $pdo->prepare("SELECT SUM(cost) as total_cost FROM repair_history WHERE vin = ?");
+                    $stmt = $pdo->prepare("SELECT SUM(cost) as total_cost FROM repair_history WHERE vehicle_id = ?");
                     $stmt->execute([$repair['vin']]);
                     $cost_total = $stmt->fetch(PDO::FETCH_ASSOC);
                     
@@ -1306,7 +1306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
                 
             case 'get_maintenance':
-                $stmt = $pdo->prepare("SELECT * FROM maintenance_schedules_schedules WHERE id = ?");
+                $stmt = $pdo->prepare("SELECT * FROM maintenance_schedules WHERE id = ?");
                 $stmt->execute([$_POST['id']]);
                 $maintenance = $stmt->fetch(PDO::FETCH_ASSOC);
                 echo json_encode($maintenance);
@@ -1319,7 +1319,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
                 
             case 'delete_maintenance':
-                $stmt = $pdo->prepare("DELETE FROM maintenance_schedules_schedules WHERE id = ?");
+                $stmt = $pdo->prepare("DELETE FROM maintenance_schedules WHERE id = ?");
                 $success = $stmt->execute([$_POST['id']]);
                 echo json_encode(['success' => $success]);
                 exit;

@@ -3717,7 +3717,7 @@ function switchCustomerTab(tabName) {
 
 function renderCustomerDetails(data) {
     const customer = data.customer;
-    document.getElementById('customerDetailsTitle').textContent = customer.name || 'Customer Details';
+    document.getElementById('customerDetailsTitle').textContent = customer.turo_guest_name || 'Customer Details';
     renderCustomerTabContent('info', data);
 }
 
@@ -3736,7 +3736,7 @@ function renderCustomerTabContent(tabName, data) {
                 <div class="details-info-grid">
                     <div class="details-info-item">
                         <div class="details-info-label">Name</div>
-                        <div class="details-info-value">${customer.name || 'N/A'}</div>
+                        <div class="details-info-value">${customer.turo_guest_name || 'N/A'}</div>
                     </div>
                     <div class="details-info-item">
                         <div class="details-info-label">Email</div>
@@ -3937,19 +3937,19 @@ function renderReservationTabContent(tabName, data) {
                     </div>
                     <div class="details-info-item">
                         <div class="details-info-label">Customer</div>
-                        <div class="details-info-value clickable" onclick="showCustomerDetails(${reservation.guest_name})">${customer?.name || 'N/A'}</div>
+                        <div class="details-info-value clickable" onclick="showCustomerDetails(${customer?.id || 0})">${customer?.turo_guest_name || reservation.guest_name || 'N/A'}</div>
                     </div>
                     <div class="details-info-item">
                         <div class="details-info-label">Vehicle</div>
-                        <div class="details-info-value clickable" onclick="showVehicleDetails('${reservation.vin}')">${vehicle?.year || ''} ${vehicle?.make || ''} ${vehicle?.model || ''}</div>
+                        <div class="details-info-value clickable" onclick="showVehicleDetails('${reservation.vehicle_identifier}')">${vehicle?.year || ''} ${vehicle?.make || ''} ${vehicle?.model || ''}</div>
                     </div>
                     <div class="details-info-item">
                         <div class="details-info-label">Start Date</div>
-                        <div class="details-info-value">${reservation.start_date || 'N/A'}</div>
+                        <div class="details-info-value">${reservation.trip_start || 'N/A'}</div>
                     </div>
                     <div class="details-info-item">
                         <div class="details-info-label">End Date</div>
-                        <div class="details-info-value">${reservation.end_date || 'N/A'}</div>
+                        <div class="details-info-value">${reservation.trip_end || 'N/A'}</div>
                     </div>
                     <div class="details-info-item">
                         <div class="details-info-label">Duration</div>
@@ -4264,7 +4264,7 @@ function switchRepairTab(tabName) {
 
 function renderRepairDetails(data) {
     const repair = data.repair;
-    document.getElementById('repairDetailsTitle').textContent = repair.description || 'Repair Details';
+    document.getElementById('repairDetailsTitle').textContent = repair.problem_description || repair.repair_description || 'Repair Details';
     renderRepairTabContent('info', data);
 }
 
@@ -4292,12 +4292,12 @@ function renderRepairTabContent(tabName, data) {
                     <div class="details-info-item">
                         <div class="details-info-label">Status</div>
                         <div class="details-info-value">
-                            <span class="details-badge status-${(repair.trip_status || '').toLowerCase()}">${repair.trip_status || 'N/A'}</span>
+                            <span class="details-badge status-${(repair.status || '').toLowerCase()}">${repair.status || 'N/A'}</span>
                         </div>
                     </div>
                     <div class="details-info-item">
                         <div class="details-info-label">Vehicle</div>
-                        <div class="details-info-value clickable" onclick="showVehicleDetails('${repair.vin}')">${vehicle?.year || ''} ${vehicle?.make || ''} ${vehicle?.model || ''}</div>
+                        <div class="details-info-value clickable" onclick="showVehicleDetails('${vehicle?.vin || ''}')">${vehicle?.year || ''} ${vehicle?.make || ''} ${vehicle?.model || ''}</div>
                     </div>
                 </div>
                 ${repair.description ? `

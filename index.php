@@ -257,7 +257,7 @@ if (isset($_GET['action'])) {
             // Get repair history
             $stmt = $pdo->prepare("
                 SELECT * FROM repair_history 
-                WHERE vin = ? 
+                WHERE vehicle_id = ? 
                 ORDER BY repair_date DESC 
                 LIMIT 10
             ");
@@ -492,7 +492,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
             case 'delete_vehicle':
                 // Check if vehicle has active rental_history
-                $stmt = $pdo->prepare("SELECT COUNT(*) FROM rental_history WHERE vin = ? AND status IN ('pending', 'confirmed', 'active')");
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM rental_history WHERE vehicle_identifier = ? AND status IN ('pending', 'confirmed', 'active')");
                 $stmt->execute([$_POST['id']]);
                 $activeReservations = $stmt->fetchColumn();
                 
@@ -950,7 +950,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Get repair history (last 10)
                     $stmt = $pdo->prepare("
                         SELECT * FROM repair_history 
-                        WHERE vin = ? 
+                        WHERE vehicle_id = ? 
                         ORDER BY repair_date DESC 
                         LIMIT 10
                     ");
@@ -970,9 +970,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     // Get recent expenses (last 10)
                     $stmt = $pdo->prepare("
-                        SELECT * FROM financial_transactions 
-                        WHERE vin = ? 
-                        ORDER BY date DESC 
+                        SELECT ft.* FROM financial_transactions ft
+                        JOIN rental_history rh ON ft.trip_id = rh.trip_id
+                        WHERE rh.vehicle_identifier = ?
+                        ORDER BY ft.transaction_date DESC 
                         LIMIT 10
                     ");
                     $stmt->execute([$vin]);
@@ -991,7 +992,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stats = $stmt->fetch(PDO::FETCH_ASSOC);
                     
                     // Get total expenses
-                    $stmt = $pdo->prepare("SELECT SUM(amount) as total_expenses FROM financial_transactions WHERE vin = ?");
+                    $stmt = $pdo->prepare("SELECT SUM(amount) as total_expenses FROM financial_transactions ft JOIN rental_history rh ON ft.trip_id = rh.trip_id WHERE rh.vehicle_identifier = ?");
                     $stmt->execute([$vin]);
                     $expense_total = $stmt->fetch(PDO::FETCH_ASSOC);
                     $stats['total_expenses'] = $expense_total['total_expenses'] ?? 0;
@@ -1281,7 +1282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Get other repairs for this vehicle
                     $stmt = $pdo->prepare("
                         SELECT * FROM repair_history 
-                        WHERE vin = ? AND id != ?
+                        WHERE vehicle_id = ? AND id != ?
                         ORDER BY repair_date DESC
                         LIMIT 10
                     ");

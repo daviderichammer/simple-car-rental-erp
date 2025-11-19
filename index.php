@@ -720,18 +720,18 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                     }
                     
                     // Get vehicle info
-                    $stmt = $pdo->prepare("SELECT * FROM vehicles WHERE vin = ?");
-                    $stmt->execute([$maintenance['vin']]);
+                    $stmt = $pdo->prepare("SELECT * FROM vehicles WHERE id = ?");
+                    $stmt->execute([$maintenance['vehicle_id']]);
                     $vehicle = $stmt->fetch(PDO::FETCH_ASSOC);
                     
                     // Get other maintenance for this vehicle
                     $stmt = $pdo->prepare("
                         SELECT * FROM maintenance_schedules 
-                        WHERE vin = ? AND id != ?
+                        WHERE vehicle_id = ? AND id != ?
                         ORDER BY scheduled_date DESC
                         LIMIT 10
                     ");
-                    $stmt->execute([$maintenance['vin'], $maintenance_id]);
+                    $stmt->execute([$maintenance['vehicle_id'], $maintenance_id]);
                     $other_maintenance = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     
                     echo json_encode([

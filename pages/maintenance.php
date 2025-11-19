@@ -1,4 +1,3 @@
-<!-- Maintenance page start -->
 <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
     <div>
         <h2>Maintenance Management</h2>
@@ -69,7 +68,6 @@
         </thead>
         <tbody>
             <?php
-            try {
             // Get filter parameters
             $filterStatus = $_GET['status'] ?? '';
             $filterType = $_GET['type'] ?? '';
@@ -122,16 +120,12 @@
                 echo "<td>" . htmlspecialchars($row['maintenance_type']) . "</td>";
                 echo "<td>" . date('M j, Y', strtotime($row['scheduled_date'])) . "</td>";
                 echo "<td>" . ucfirst($row['status']) . "</td>";
-                echo "<td>" . htmlspecialchars($row['description']) . "</td>";
-                echo "<td>";
+                echo "<td>" . htmlspecialchars($row['description']) . "</td>";                echo "<td>";
                 echo "<button class='btn-info' onclick='showMaintenanceDetails(" . $row['id'] . ")'>Details</button>";
                 echo "<button class='btn-edit' onclick='editMaintenance(" . $row['id'] . ")'>Edit</button>";
-                echo "<button class='btn-delete' onclick='deleteMaintenance(" . $row['id'] . ", \"" . htmlspecialchars($row['vehicle_name']) . "\", \"" . htmlspecialchars($row['maintenance_type']) . "\")">Delete</button>";
+                echo "<button class='btn-delete' onclick='deleteMaintenance(" . $row['id'] . ", \"" . htmlspecialchars($row['vehicle_name']) . "\", \"" . htmlspecialchars($row['maintenance_type']) . "\")'> Delete</button>";
                 echo "</td>";
                 echo "</tr>";
-            }
-            } catch (Exception $e) {
-                echo "<tr><td colspan='7' style='color: red; padding: 2rem; text-align: center;'>Database Error: " . htmlspecialchars($e->getMessage()) . "</td></tr>";
             }
             ?>
         </tbody>

@@ -233,10 +233,10 @@ if (isset($_GET['action'])) {
             // Get owner info
             $stmt = $pdo->prepare("
                 SELECT o.*, v.vin 
-                FROM owners o 
+                FROM vehicle_owners o 
                 JOIN vehicles v ON o.vin = v.vin 
                 WHERE v.vin = ? 
-                ORDER BY o.ownership_start_date DESC 
+                ORDER BY o.created_at DESC 
                 LIMIT 1
             ");
             $stmt->execute([$vin]);
@@ -245,9 +245,9 @@ if (isset($_GET['action'])) {
             // Get maintenance history
             $stmt = $pdo->prepare("
                 SELECT m.*, v.make, v.model 
-                FROM maintenance m 
-                JOIN vehicles v ON m.vin = v.vin 
-                WHERE m.vin = ? 
+                FROM maintenance_schedules m 
+                JOIN vehicles v ON m.vehicle_id = v.id 
+                WHERE m.vehicle_id = ? 
                 ORDER BY m.scheduled_date DESC 
                 LIMIT 10
             ");
@@ -256,7 +256,7 @@ if (isset($_GET['action'])) {
             
             // Get repair history
             $stmt = $pdo->prepare("
-                SELECT * FROM repairs 
+                SELECT * FROM repair_history 
                 WHERE vin = ? 
                 ORDER BY repair_date DESC 
                 LIMIT 10
@@ -264,22 +264,22 @@ if (isset($_GET['action'])) {
             $stmt->execute([$vin]);
             $repairs = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            // Get active reservations
+            // Get active rental_history
             $stmt = $pdo->prepare("
                 SELECT r.*, c.name as customer_name, c.email as customer_email
-                FROM reservations r 
-                JOIN customers c ON r.customer_id = c.id 
+                FROM rental_history r 
+                JOIN customers c ON r.guest_name = c.turo_guest_name 
                 WHERE r.vin = ? AND r.status IN ('confirmed', 'active')
                 ORDER BY r.start_date DESC
             ");
             $stmt->execute([$vin]);
-            $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $rental_history = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             // Get expenses
             $stmt = $pdo->prepare("
-                SELECT * FROM expenses 
+                SELECT ft.* FROM financial_transactions ft JOIN rental_history rh ON ft.reservation_id = rh.id 
                 WHERE vin = ? 
-                ORDER BY expense_date DESC 
+                ORDER BY ft.transaction_date DESC 
                 LIMIT 10
             ");
             $stmt->execute([$vin]);
@@ -287,8 +287,8 @@ if (isset($_GET['action'])) {
             
             // Calculate statistics
             $stats = [
-                'total_trips' => count($reservations),
-                'total_revenue' => array_sum(array_column($reservations, 'total_cost')),
+                'total_trips' => count($rental_history),
+                'total_revenue' => array_sum(array_column($rental_history, 'total_cost')),
                 'total_expenses' => array_sum(array_column($expenses, 'amount')),
                 'total_mileage' => $vehicle['mileage'] ?? 0
             ];
@@ -299,7 +299,7 @@ if (isset($_GET['action'])) {
                 'owner' => $owner,
                 'maintenance' => $maintenance,
                 'repairs' => $repairs,
-                'reservations' => $reservations,
+                'rental_history' => $rental_history,
                 'expenses' => $expenses,
                 'statistics' => $stats
             ]);
@@ -318,7 +318,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     
     switch ($_GET['action']) {
         case 'get_maintenance':
-            $stmt = $pdo->prepare("SELECT * FROM maintenance_schedules WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT * FROM maintenance_schedules_schedules WHERE id = ?");
             $stmt->execute([$_GET['id']]);
             $maintenance = $stmt->fetch(PDO::FETCH_ASSOC);
             echo json_encode(['success' => true, 'maintenance' => $maintenance]);
@@ -350,11 +350,11 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                 ],
                 'last_sync' => [
                     'timestamp' => date('Y-m-d H:i:s', strtotime('-5 minutes')),
-                    'details' => 'Synced 3 reservations'
+                    'details' => 'Synced 3 rental_history'
                 ],
                 'data_quality' => [
-                    'reservations_synced' => $pdo->query("SELECT COUNT(*) FROM reservations WHERE data_source = 'turo_web'")->fetchColumn(),
-                    'reservations_today' => $pdo->query("SELECT COUNT(*) FROM reservations WHERE data_source = 'turo_web' AND DATE(created_at) = CURDATE()")->fetchColumn(),
+                    'rental_history_synced' => $pdo->query("SELECT COUNT(*) FROM rental_history WHERE data_source = 'turo_web'")->fetchColumn(),
+                    'rental_history_today' => $pdo->query("SELECT COUNT(*) FROM rental_history WHERE data_source = 'turo_web' AND DATE(created_at) = CURDATE()")->fetchColumn(),
                     'vehicles_tracked' => $pdo->query("SELECT COUNT(*) FROM vehicles")->fetchColumn(),
                     'vehicles_active' => $pdo->query("SELECT COUNT(*) FROM vehicles WHERE status = 'active'")->fetchColumn(),
                     'completeness' => 95,
@@ -491,15 +491,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
                 
             case 'delete_vehicle':
-                // Check if vehicle has active reservations
-                $stmt = $pdo->prepare("SELECT COUNT(*) FROM reservations WHERE vehicle_id = ? AND status IN ('pending', 'confirmed', 'active')");
+                // Check if vehicle has active rental_history
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM rental_history WHERE vin = ? AND status IN ('pending', 'confirmed', 'active')");
                 $stmt->execute([$_POST['id']]);
                 $activeReservations = $stmt->fetchColumn();
                 
                 if ($activeReservations > 0) {
                     // Toast notification
-        echo "<script>if(typeof showToast === 'function') showToast('Cannot delete vehicle with active reservations', 'error');</script>";
-        echo json_encode(['success' => false, 'message' => 'Cannot delete vehicle with active reservations']);
+        echo "<script>if(typeof showToast === 'function') showToast('Cannot delete vehicle with active rental_history', 'error');</script>";
+        echo json_encode(['success' => false, 'message' => 'Cannot delete vehicle with active rental_history']);
                     exit;
                 }
                 
@@ -568,15 +568,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
                 
             case 'delete_customer':
-                // Check if customer has active reservations
-                $stmt = $pdo->prepare("SELECT COUNT(*) FROM reservations WHERE customer_id = ? AND status IN ('pending', 'confirmed', 'active')");
+                // Check if customer has active rental_history
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM rental_history WHERE guest_name = ? AND status IN ('pending', 'confirmed', 'active')");
                 $stmt->execute([$_POST['id']]);
                 $activeReservations = $stmt->fetchColumn();
                 
                 if ($activeReservations > 0) {
                     // Toast notification
-        echo "<script>if(typeof showToast === 'function') showToast('Cannot delete customer with active reservations', 'error');</script>";
-        echo json_encode(['success' => false, 'message' => 'Cannot delete customer with active reservations']);
+        echo "<script>if(typeof showToast === 'function') showToast('Cannot delete customer with active rental_history', 'error');</script>";
+        echo json_encode(['success' => false, 'message' => 'Cannot delete customer with active rental_history']);
                     exit;
                 }
                 
@@ -586,15 +586,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
                 
             case 'get_reservation':
-                $stmt = $pdo->prepare("SELECT * FROM reservations WHERE id = ?");
+                $stmt = $pdo->prepare("SELECT * FROM rental_history WHERE id = ?");
                 $stmt->execute([$_POST['id']]);
                 $reservation = $stmt->fetch(PDO::FETCH_ASSOC);
                 echo json_encode($reservation);
                 exit;
                 
             case 'update_reservation':
-                $stmt = $pdo->prepare("UPDATE reservations SET customer_id = ?, vehicle_id = ?, start_date = ?, end_date = ?, pickup_location = ?, dropoff_location = ?, total_amount = ?, status = ?, notes = ? WHERE id = ?");
-                $success = $stmt->execute([$_POST['customer_id'], $_POST['vehicle_id'], $_POST['start_date'], $_POST['end_date'], $_POST['pickup_location'], $_POST['dropoff_location'], $_POST['total_amount'], $_POST['status'], $_POST['notes'], $_POST['id']]);
+                $stmt = $pdo->prepare("UPDATE rental_history SET guest_name = ?, vehicle_id = ?, start_date = ?, end_date = ?, pickup_location = ?, dropoff_location = ?, total_amount = ?, status = ?, notes = ? WHERE id = ?");
+                $success = $stmt->execute([$_POST['guest_name'], $_POST['vehicle_id'], $_POST['start_date'], $_POST['end_date'], $_POST['pickup_location'], $_POST['dropoff_location'], $_POST['total_amount'], $_POST['status'], $_POST['notes'], $_POST['id']]);
                 echo json_encode(['success' => $success]);
                 exit;
                 
@@ -611,7 +611,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
                 
             case 'get_maintenance':
-                $stmt = $pdo->prepare("SELECT * FROM maintenance_schedules WHERE id = ?");
+                $stmt = $pdo->prepare("SELECT * FROM maintenance_schedules_schedules WHERE id = ?");
                 $stmt->execute([$_GET['id']]);
                 $maintenance = $stmt->fetch(PDO::FETCH_ASSOC);
                 echo json_encode(['success' => true, 'maintenance' => $maintenance]);
@@ -631,7 +631,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
                 
             case 'delete_maintenance':
-                $stmt = $pdo->prepare("DELETE FROM maintenance_schedules WHERE id = ?");
+                $stmt = $pdo->prepare("DELETE FROM maintenance_schedules_schedules WHERE id = ?");
                 $success = $stmt->execute([$_POST['id']]);
                 echo json_encode(['success' => $success]);
                 exit;
@@ -639,7 +639,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'bulk_delete_maintenance':
                 $ids = explode(',', $_POST['ids']);
                 $placeholders = str_repeat('?,', count($ids) - 1) . '?';
-                $stmt = $pdo->prepare("DELETE FROM maintenance_schedules WHERE id IN ($placeholders)");
+                $stmt = $pdo->prepare("DELETE FROM maintenance_schedules_schedules WHERE id IN ($placeholders)");
                 $success = $stmt->execute($ids);
                 echo json_encode(['success' => $success, 'deleted_count' => $stmt->rowCount()]);
                 exit;
@@ -684,10 +684,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo json_encode(['success' => $success, 'deleted_count' => $stmt->rowCount()]);
                 exit;
                 
-            case 'bulk_delete_reservations':
+            case 'bulk_delete_rental_history':
                 $ids = explode(',', $_POST['ids']);
                 $placeholders = str_repeat('?,', count($ids) - 1) . '?';
-                $stmt = $pdo->prepare("DELETE FROM reservations WHERE id IN ($placeholders)");
+                $stmt = $pdo->prepare("DELETE FROM rental_history WHERE id IN ($placeholders)");
                 $success = $stmt->execute($ids);
                 echo json_encode(['success' => $success, 'deleted_count' => $stmt->rowCount()]);
                 exit;
@@ -797,13 +797,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
             // Reservations handlers
             case 'create_reservation':
-                $stmt = $pdo->prepare("INSERT INTO reservations (customer_id, vehicle_id, start_date, end_date, pickup_location, dropoff_location, total_amount, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $success = $stmt->execute([$_POST['customer_id'], $_POST['vehicle_id'], $_POST['start_date'], $_POST['end_date'], $_POST['pickup_location'], $_POST['dropoff_location'], $_POST['total_amount'], $_POST['status'], $_POST['notes'] ?? '']);
+                $stmt = $pdo->prepare("INSERT INTO rental_history (guest_name, vehicle_id, start_date, end_date, pickup_location, dropoff_location, total_amount, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $success = $stmt->execute([$_POST['guest_name'], $_POST['vehicle_id'], $_POST['start_date'], $_POST['end_date'], $_POST['pickup_location'], $_POST['dropoff_location'], $_POST['total_amount'], $_POST['status'], $_POST['notes'] ?? '']);
                 echo json_encode(['success' => $success]);
                 exit;
                 
             case 'delete_reservation':
-                $stmt = $pdo->prepare("DELETE FROM reservations WHERE id = ?");
+                $stmt = $pdo->prepare("DELETE FROM rental_history WHERE id = ?");
                 $success = $stmt->execute([$_POST['id']]);
                 echo json_encode(['success' => $success]);
                 exit;
@@ -836,13 +836,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
             // Expenses handlers
             case 'create_expense':
-                $stmt = $pdo->prepare("INSERT INTO expenses (vehicle_id, category, description, amount, expense_date, vendor, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                $success = $stmt->execute([$_POST['vehicle_id'] ?? null, $_POST['category'], $_POST['description'], $_POST['amount'], $_POST['expense_date'], $_POST['vendor'] ?? '', $_POST['payment_method'] ?? '', $_POST['notes'] ?? '']);
+                $stmt = $pdo->prepare("INSERT INTO expenses (vehicle_id, category, description, amount, transaction_date, vendor, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $success = $stmt->execute([$_POST['vehicle_id'] ?? null, $_POST['category'], $_POST['description'], $_POST['amount'], $_POST['transaction_date'], $_POST['vendor'] ?? '', $_POST['payment_method'] ?? '', $_POST['notes'] ?? '']);
                 echo json_encode(['success' => $success]);
                 exit;
                 
             case 'delete_expense':
-                $stmt = $pdo->prepare("DELETE FROM expenses WHERE id = ?");
+                $stmt = $pdo->prepare("DELETE FROM expense_history WHERE id = ?");
                 $success = $stmt->execute([$_POST['id']]);
                 echo json_encode(['success' => $success]);
                 exit;
@@ -926,10 +926,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Get owner info
                     $stmt = $pdo->prepare("
                         SELECT o.*, v.vin 
-                        FROM owners o 
+                        FROM vehicle_owners o 
                         JOIN vehicles v ON o.vin = v.vin 
                         WHERE v.vin = ? 
-                        ORDER BY o.ownership_start_date DESC 
+                        ORDER BY o.created_at DESC 
                         LIMIT 1
                     ");
                     $stmt->execute([$vin]);
@@ -938,9 +938,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Get maintenance history (last 10)
                     $stmt = $pdo->prepare("
                         SELECT m.*, v.make, v.model 
-                        FROM maintenance m 
-                        JOIN vehicles v ON m.vin = v.vin 
-                        WHERE m.vin = ? 
+                        FROM maintenance_schedules m 
+                        JOIN vehicles v ON m.vehicle_id = v.id 
+                        WHERE m.vehicle_id = ? 
                         ORDER BY m.scheduled_date DESC 
                         LIMIT 10
                     ");
@@ -949,7 +949,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     // Get repair history (last 10)
                     $stmt = $pdo->prepare("
-                        SELECT * FROM repairs 
+                        SELECT * FROM repair_history 
                         WHERE vin = ? 
                         ORDER BY repair_date DESC 
                         LIMIT 10
@@ -957,20 +957,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->execute([$vin]);
                     $repairs = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     
-                    // Get active reservations
+                    // Get active rental_history
                     $stmt = $pdo->prepare("
                         SELECT r.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone
-                        FROM reservations r 
-                        JOIN customers c ON r.customer_id = c.id 
+                        FROM rental_history r 
+                        JOIN customers c ON r.guest_name = c.turo_guest_name 
                         WHERE r.vin = ? AND r.status IN ('confirmed', 'active')
                         ORDER BY r.start_date DESC
                     ");
                     $stmt->execute([$vin]);
-                    $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    $rental_history = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     
                     // Get recent expenses (last 10)
                     $stmt = $pdo->prepare("
-                        SELECT * FROM expenses 
+                        SELECT * FROM expense_history 
                         WHERE vin = ? 
                         ORDER BY date DESC 
                         LIMIT 10
@@ -984,14 +984,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             COUNT(*) as total_trips,
                             SUM(total_cost) as total_revenue,
                             AVG(DATEDIFF(end_date, start_date)) as avg_trip_days
-                        FROM reservations 
+                        FROM rental_history 
                         WHERE vin = ? AND status = 'completed'
                     ");
                     $stmt->execute([$vin]);
                     $stats = $stmt->fetch(PDO::FETCH_ASSOC);
                     
                     // Get total expenses
-                    $stmt = $pdo->prepare("SELECT SUM(amount) as total_expenses FROM expenses WHERE vin = ?");
+                    $stmt = $pdo->prepare("SELECT SUM(amount) as total_expenses FROM expense_history WHERE vin = ?");
                     $stmt->execute([$vin]);
                     $expense_total = $stmt->fetch(PDO::FETCH_ASSOC);
                     $stats['total_expenses'] = $expense_total['total_expenses'] ?? 0;
@@ -1003,7 +1003,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'owner' => $owner,
                         'maintenance' => $maintenance,
                         'repairs' => $repairs,
-                        'reservations' => $reservations,
+                        'rental_history' => $rental_history,
                         'expenses' => $expenses,
                         'statistics' => $stats
                     ]);
@@ -1018,7 +1018,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $owner_id = $_GET['id'] ?? '';
                     
                     // Get owner info
-                    $stmt = $pdo->prepare("SELECT * FROM owners WHERE id = ?");
+                    $stmt = $pdo->prepare("SELECT * FROM vehicle_owners WHERE id = ?");
                     $stmt->execute([$owner_id]);
                     $owner = $stmt->fetch(PDO::FETCH_ASSOC);
                     
@@ -1031,11 +1031,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     // Get all owned vehicles
                     $stmt = $pdo->prepare("
-                        SELECT v.*, o.ownership_start_date, o.ownership_end_date, o.ownership_type
+                        SELECT v.*, o.created_at, o.ownership_end_date, o.ownership_type
                         FROM vehicles v 
                         JOIN owners o ON v.vin = o.vin 
                         WHERE o.owner_name = ? 
-                        ORDER BY o.ownership_start_date DESC
+                        ORDER BY o.created_at DESC
                     ");
                     $stmt->execute([$owner['owner_name']]);
                     $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -1060,7 +1060,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $placeholders = str_repeat('?,', count($vins) - 1) . '?';
                         $stmt = $pdo->prepare("
                             SELECT SUM(total_cost) as total_revenue 
-                            FROM reservations 
+                            FROM rental_history 
                             WHERE vin IN ($placeholders) AND status = 'completed'
                         ");
                         $stmt->execute($vins);
@@ -1084,11 +1084,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Get Customer Details with reservation history
             case 'get_customer_details':
                 try {
-                    $customer_id = $_GET['id'] ?? '';
+                    $guest_name = $_GET['id'] ?? '';
                     
                     // Get customer info
                     $stmt = $pdo->prepare("SELECT * FROM customers WHERE id = ?");
-                    $stmt->execute([$customer_id]);
+                    $stmt->execute([$guest_name]);
                     $customer = $stmt->fetch(PDO::FETCH_ASSOC);
                     
                     if (!$customer) {
@@ -1098,21 +1098,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         exit;
                     }
                     
-                    // Get all reservations
+                    // Get all rental_history
                     $stmt = $pdo->prepare("
                         SELECT r.*, v.make, v.model, v.year, v.color, v.license_plate
-                        FROM reservations r 
+                        FROM rental_history r 
                         JOIN vehicles v ON r.vin = v.vin 
-                        WHERE r.customer_id = ? 
+                        WHERE r.guest_name = ? 
                         ORDER BY r.start_date DESC
                     ");
-                    $stmt->execute([$customer_id]);
-                    $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    $stmt->execute([$guest_name]);
+                    $rental_history = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     
                     // Calculate statistics
                     $stmt = $pdo->prepare("
                         SELECT 
-                            COUNT(*) as total_reservations,
+                            COUNT(*) as total_rental_history,
                             SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_trips,
                             SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_trips,
                             SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_trips,
@@ -1120,29 +1120,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             AVG(total_cost) as avg_trip_cost,
                             MIN(start_date) as first_rental,
                             MAX(start_date) as last_rental
-                        FROM reservations 
-                        WHERE customer_id = ?
+                        FROM rental_history 
+                        WHERE guest_name = ?
                     ");
-                    $stmt->execute([$customer_id]);
+                    $stmt->execute([$guest_name]);
                     $stats = $stmt->fetch(PDO::FETCH_ASSOC);
                     
                     // Get favorite vehicles (most rented)
                     $stmt = $pdo->prepare("
                         SELECT v.make, v.model, v.vin, COUNT(*) as rental_count
-                        FROM reservations r
+                        FROM rental_history r
                         JOIN vehicles v ON r.vin = v.vin
-                        WHERE r.customer_id = ?
+                        WHERE r.guest_name = ?
                         GROUP BY v.vin
                         ORDER BY rental_count DESC
                         LIMIT 3
                     ");
-                    $stmt->execute([$customer_id]);
+                    $stmt->execute([$guest_name]);
                     $favorite_vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     
                     echo json_encode([
                         'success' => true,
                         'customer' => $customer,
-                        'reservations' => $reservations,
+                        'rental_history' => $rental_history,
                         'statistics' => $stats,
                         'favorite_vehicles' => $favorite_vehicles
                     ]);
@@ -1157,7 +1157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $reservation_id = $_GET['id'] ?? '';
                     
                     // Get reservation info
-                    $stmt = $pdo->prepare("SELECT * FROM reservations WHERE id = ?");
+                    $stmt = $pdo->prepare("SELECT * FROM rental_history WHERE id = ?");
                     $stmt->execute([$reservation_id]);
                     $reservation = $stmt->fetch(PDO::FETCH_ASSOC);
                     
@@ -1170,7 +1170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     // Get customer info
                     $stmt = $pdo->prepare("SELECT * FROM customers WHERE id = ?");
-                    $stmt->execute([$reservation['customer_id']]);
+                    $stmt->execute([$reservation['guest_name']]);
                     $customer = $stmt->fetch(PDO::FETCH_ASSOC);
                     
                     // Get vehicle info
@@ -1178,14 +1178,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->execute([$reservation['vin']]);
                     $vehicle = $stmt->fetch(PDO::FETCH_ASSOC);
                     
-                    // Get customer's other reservations with this vehicle
+                    // Get customer's other rental_history with this vehicle
                     $stmt = $pdo->prepare("
-                        SELECT * FROM reservations 
-                        WHERE customer_id = ? AND vin = ? AND id != ?
+                        SELECT * FROM rental_history 
+                        WHERE guest_name = ? AND vin = ? AND id != ?
                         ORDER BY start_date DESC
                         LIMIT 5
                     ");
-                    $stmt->execute([$reservation['customer_id'], $reservation['vin'], $reservation_id]);
+                    $stmt->execute([$reservation['guest_name'], $reservation['vin'], $reservation_id]);
                     $previous_rentals = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     
                     // Calculate rental duration and costs
@@ -1219,7 +1219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $maintenance_id = $_GET['id'] ?? '';
                     
                     // Get maintenance info
-                    $stmt = $pdo->prepare("SELECT * FROM maintenance WHERE id = ?");
+                    $stmt = $pdo->prepare("SELECT * FROM maintenance_schedules WHERE id = ?");
                     $stmt->execute([$maintenance_id]);
                     $maintenance = $stmt->fetch(PDO::FETCH_ASSOC);
                     
@@ -1237,7 +1237,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     // Get other maintenance for this vehicle
                     $stmt = $pdo->prepare("
-                        SELECT * FROM maintenance 
+                        SELECT * FROM maintenance_schedules 
                         WHERE vin = ? AND id != ?
                         ORDER BY scheduled_date DESC
                         LIMIT 10
@@ -1262,7 +1262,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $repair_id = $_GET['id'] ?? '';
                     
                     // Get repair info
-                    $stmt = $pdo->prepare("SELECT * FROM repairs WHERE id = ?");
+                    $stmt = $pdo->prepare("SELECT * FROM repair_history WHERE id = ?");
                     $stmt->execute([$repair_id]);
                     $repair = $stmt->fetch(PDO::FETCH_ASSOC);
                     
@@ -1280,7 +1280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     // Get other repairs for this vehicle
                     $stmt = $pdo->prepare("
-                        SELECT * FROM repairs 
+                        SELECT * FROM repair_history 
                         WHERE vin = ? AND id != ?
                         ORDER BY repair_date DESC
                         LIMIT 10
@@ -1289,7 +1289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $other_repairs = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     
                     // Calculate total repair costs for this vehicle
-                    $stmt = $pdo->prepare("SELECT SUM(cost) as total_cost FROM repairs WHERE vin = ?");
+                    $stmt = $pdo->prepare("SELECT SUM(cost) as total_cost FROM repair_history WHERE vin = ?");
                     $stmt->execute([$repair['vin']]);
                     $cost_total = $stmt->fetch(PDO::FETCH_ASSOC);
                     
@@ -1306,7 +1306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
                 
             case 'get_maintenance':
-                $stmt = $pdo->prepare("SELECT * FROM maintenance_schedules WHERE id = ?");
+                $stmt = $pdo->prepare("SELECT * FROM maintenance_schedules_schedules WHERE id = ?");
                 $stmt->execute([$_POST['id']]);
                 $maintenance = $stmt->fetch(PDO::FETCH_ASSOC);
                 echo json_encode($maintenance);
@@ -1319,7 +1319,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
                 
             case 'delete_maintenance':
-                $stmt = $pdo->prepare("DELETE FROM maintenance_schedules WHERE id = ?");
+                $stmt = $pdo->prepare("DELETE FROM maintenance_schedules_schedules WHERE id = ?");
                 $success = $stmt->execute([$_POST['id']]);
                 echo json_encode(['success' => $success]);
                 exit;
@@ -1401,8 +1401,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
                 
             case 'add_reservation':
-                $stmt = $pdo->prepare("INSERT INTO reservations (customer_id, vehicle_id, start_date, end_date, pickup_location, dropoff_location, total_amount, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)");
-                $stmt->execute([$_POST['customer_id'], $_POST['vehicle_id'], $_POST['start_date'], $_POST['end_date'], $_POST['pickup_location'], $_POST['dropoff_location'], $_POST['total_amount'], $_POST['notes']]);
+                $stmt = $pdo->prepare("INSERT INTO rental_history (guest_name, vehicle_id, start_date, end_date, pickup_location, dropoff_location, total_amount, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)");
+                $stmt->execute([$_POST['guest_name'], $_POST['vehicle_id'], $_POST['start_date'], $_POST['end_date'], $_POST['pickup_location'], $_POST['dropoff_location'], $_POST['total_amount'], $_POST['notes']]);
                 break;
                 
             case 'add_maintenance':
@@ -2151,7 +2151,7 @@ $current_page = $_GET['page'] ?? 'dashboard';
                     <div class="nav-group-title">
                         <span>📋</span> OPERATIONS
                     </div>
-                    <a href="?page=reservations" class="nav-item <?php echo $current_page === 'reservations' ? 'active' : ''; ?>">
+                    <a href="?page=rental_history" class="nav-item <?php echo $current_page === 'rental_history' ? 'active' : ''; ?>">
                         <span class="nav-icon">📅</span>
                         <span>Reservations</span>
                         <span class="nav-badge">3</span>
@@ -2594,7 +2594,7 @@ window.showToast = (type, title, message, duration) => ToastNotification.show({ 
             })
             .then(response => response.json())
             .then(data => {
-                document.getElementById('edit_customer_id').value = data.id;
+                document.getElementById('edit_guest_name').value = data.id;
                 document.getElementById('edit_customer_first_name').value = data.first_name;
                 document.getElementById('edit_customer_last_name').value = data.last_name;
                 document.getElementById('edit_customer_email').value = data.email;
@@ -2674,7 +2674,7 @@ window.showToast = (type, title, message, duration) => ToastNotification.show({ 
             .then(response => response.json())
             .then(data => {
                 document.getElementById('edit_reservation_id').value = data.id;
-                document.getElementById('edit_customer_id').value = data.customer_id;
+                document.getElementById('edit_guest_name').value = data.guest_name;
                 document.getElementById('edit_vehicle_id').value = data.vehicle_id;
                 document.getElementById('edit_start_date').value = data.start_date;
                 document.getElementById('edit_end_date').value = data.end_date;
@@ -2879,6 +2879,7 @@ window.showToast = (type, title, message, duration) => ToastNotification.show({ 
 }
 
 .details-table {
+</script>
     width: 100%;
     border-collapse: collapse;
     margin-top: 15px;
@@ -3054,7 +3055,7 @@ window.showToast = (type, title, message, duration) => ToastNotification.show({ 
             <button class="details-tab" onclick="switchVehicleTab('owner')">👤 Owner</button>
             <button class="details-tab" onclick="switchVehicleTab('maintenance')">🔧 Maintenance</button>
             <button class="details-tab" onclick="switchVehicleTab('repairs')">🛠️ Repairs</button>
-            <button class="details-tab" onclick="switchVehicleTab('reservations')">📅 Reservations</button>
+            <button class="details-tab" onclick="switchVehicleTab('rental_history')">📅 Reservations</button>
             <button class="details-tab" onclick="switchVehicleTab('expenses')">💰 Expenses</button>
             <button class="details-tab" onclick="switchVehicleTab('stats')">📊 Statistics</button>
         </div>
@@ -3122,7 +3123,7 @@ function renderVehicleTabContent(tabName, data) {
     const owner = data.owner;
     const maintenance = data.maintenance || [];
     const repairs = data.repairs || [];
-    const reservations = data.reservations || [];
+    const rental_history = data.rental_history || [];
     const expenses = data.expenses || [];
     const stats = data.statistics || {};
     
@@ -3209,7 +3210,7 @@ function renderVehicleTabContent(tabName, data) {
                         </div>
                         <div class="details-info-item">
                             <div class="details-info-label">Start Date</div>
-                            <div class="details-info-value">${owner.ownership_start_date || 'N/A'}</div>
+                            <div class="details-info-value">${owner.created_at || 'N/A'}</div>
                         </div>
                         <div class="details-info-item">
                             <div class="details-info-label">End Date</div>
@@ -3285,10 +3286,10 @@ function renderVehicleTabContent(tabName, data) {
             }
             break;
             
-        case 'reservations':
-            if (reservations.length > 0) {
+        case 'rental_history':
+            if (rental_history.length > 0) {
                 html = `
-                    <div class="details-section-title">Active Reservations (${reservations.length})</div>
+                    <div class="details-section-title">Active Reservations (${rental_history.length})</div>
                     <table class="details-table">
                         <thead>
                             <tr>
@@ -3300,9 +3301,9 @@ function renderVehicleTabContent(tabName, data) {
                             </tr>
                         </thead>
                         <tbody>
-                            ${reservations.map(r => `
+                            ${rental_history.map(r => `
                                 <tr style="cursor: pointer;" onclick="showReservationDetails(${r.id})">
-                                    <td class="clickable" onclick="event.stopPropagation(); showCustomerDetails(${r.customer_id})">${r.customer_name || 'N/A'}</td>
+                                    <td class="clickable" onclick="event.stopPropagation(); showCustomerDetails(${r.guest_name})">${r.customer_name || 'N/A'}</td>
                                     <td>${r.start_date || 'N/A'}</td>
                                     <td>${r.end_date || 'N/A'}</td>
                                     <td><span class="details-badge status-${(r.status || '').toLowerCase()}">${r.status || 'N/A'}</span></td>
@@ -3313,7 +3314,7 @@ function renderVehicleTabContent(tabName, data) {
                     </table>
                 `;
             } else {
-                html = '<div class="details-empty">No active reservations</div>';
+                html = '<div class="details-empty">No active rental_history</div>';
             }
             break;
             
@@ -3441,7 +3442,7 @@ document.addEventListener('keydown', function(event) {
         </div>
         <div class="details-tabs">
             <button class="details-tab active" onclick="switchCustomerTab('info')">📋 Information</button>
-            <button class="details-tab" onclick="switchCustomerTab('reservations')">📅 Reservations</button>
+            <button class="details-tab" onclick="switchCustomerTab('rental_history')">📅 Reservations</button>
             <button class="details-tab" onclick="switchCustomerTab('favorites')">⭐ Favorites</button>
             <button class="details-tab" onclick="switchCustomerTab('stats')">📊 Statistics</button>
         </div>
@@ -3584,7 +3585,7 @@ function renderOwnerTabContent(tabName, data) {
                     </div>
                     <div class="details-info-item">
                         <div class="details-info-label">Start Date</div>
-                        <div class="details-info-value">${owner.ownership_start_date || 'N/A'}</div>
+                        <div class="details-info-value">${owner.created_at || 'N/A'}</div>
                     </div>
                     <div class="details-info-item">
                         <div class="details-info-label">End Date</div>
@@ -3613,7 +3614,7 @@ function renderOwnerTabContent(tabName, data) {
                                 <tr style="cursor: pointer;" onclick="showVehicleDetails('${v.vin}')">
                                     <td>${v.year || ''} ${v.make || ''} ${v.model || ''}</td>
                                     <td>${v.vin || 'N/A'}</td>
-                                    <td>${v.ownership_start_date || 'N/A'}</td>
+                                    <td>${v.created_at || 'N/A'}</td>
                                     <td>${v.ownership_end_date || 'Active'}</td>
                                     <td>$${v.daily_rate || '0'}</td>
                                 </tr>
@@ -3704,7 +3705,7 @@ function renderCustomerDetails(data) {
 function renderCustomerTabContent(tabName, data) {
     const body = document.getElementById('customerDetailsBody');
     const customer = data.customer;
-    const reservations = data.reservations || [];
+    const rental_history = data.rental_history || [];
     const favorites = data.favorite_vehicles || [];
     const stats = data.statistics || {};
     
@@ -3754,10 +3755,10 @@ function renderCustomerTabContent(tabName, data) {
             `;
             break;
             
-        case 'reservations':
-            if (reservations.length > 0) {
+        case 'rental_history':
+            if (rental_history.length > 0) {
                 html = `
-                    <div class="details-section-title">Reservation History (${reservations.length})</div>
+                    <div class="details-section-title">Reservation History (${rental_history.length})</div>
                     <table class="details-table">
                         <thead>
                             <tr>
@@ -3769,7 +3770,7 @@ function renderCustomerTabContent(tabName, data) {
                             </tr>
                         </thead>
                         <tbody>
-                            ${reservations.map(r => `
+                            ${rental_history.map(r => `
                                 <tr style="cursor: pointer;" onclick="showReservationDetails(${r.id})">
                                     <td class="clickable" onclick="event.stopPropagation(); showVehicleDetails('${r.vin}')">${r.make || ''} ${r.model || ''}</td>
                                     <td>${r.start_date || 'N/A'}</td>
@@ -3782,7 +3783,7 @@ function renderCustomerTabContent(tabName, data) {
                     </table>
                 `;
             } else {
-                html = '<div class="details-empty">No reservations found</div>';
+                html = '<div class="details-empty">No rental_history found</div>';
             }
             break;
             
@@ -3820,7 +3821,7 @@ function renderCustomerTabContent(tabName, data) {
                 <div class="details-stats-grid">
                     <div class="details-stat-card">
                         <div class="details-stat-label">Total Reservations</div>
-                        <div class="details-stat-value">${stats.total_reservations || 0}</div>
+                        <div class="details-stat-value">${stats.total_rental_history || 0}</div>
                     </div>
                     <div class="details-stat-card">
                         <div class="details-stat-label">Completed Trips</div>
@@ -3917,7 +3918,7 @@ function renderReservationTabContent(tabName, data) {
                     </div>
                     <div class="details-info-item">
                         <div class="details-info-label">Customer</div>
-                        <div class="details-info-value clickable" onclick="showCustomerDetails(${reservation.customer_id})">${customer?.name || 'N/A'}</div>
+                        <div class="details-info-value clickable" onclick="showCustomerDetails(${reservation.guest_name})">${customer?.name || 'N/A'}</div>
                     </div>
                     <div class="details-info-item">
                         <div class="details-info-label">Vehicle</div>
@@ -4381,3 +4382,4 @@ document.addEventListener('keydown', function(event) {
     }
 });
 </script>
+</body></html>

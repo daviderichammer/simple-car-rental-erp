@@ -122,8 +122,9 @@
                 echo "<td>" . ucfirst($row['status']) . "</td>";
                 echo "<td>" . htmlspecialchars($row['description']) . "</td>";
                 echo "<td>";
+                echo "<button class='btn-info' onclick='showMaintenanceDetails(" . $row['id'] . ")'>Details</button>";
                 echo "<button class='btn-edit' onclick='editMaintenance(" . $row['id'] . ")'>Edit</button>";
-                echo "<button class='btn-delete' onclick='deleteMaintenance(" . $row['id'] . ", \"" . htmlspecialchars($row['vehicle_name']) . "\", \"" . htmlspecialchars($row['maintenance_type']) . "\")'>Delete</button>";
+                echo "<button class='btn-delete' onclick='deleteMaintenance(" . $row['id'] . ", \"" . htmlspecialchars($row['vehicle_name']) . "\", \"" . htmlspecialchars($row['maintenance_type']) . "\")">Delete</button>";
                 echo "</td>";
                 echo "</tr>";
             }

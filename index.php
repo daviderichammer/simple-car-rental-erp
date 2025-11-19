@@ -519,9 +519,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                     
                     // Get all owned vehicles
                     $stmt = $pdo->prepare("
-                        SELECT v.*, o.created_at, o.ownership_end_date, o.ownership_type
+                        SELECT v.*, o.created_at, o.owner_type
                         FROM vehicles v 
-                        JOIN owners o ON v.vin = o.vin 
+                        JOIN vehicle_owners o ON v.vin = o.vin 
                         WHERE o.owner_name = ? 
                         ORDER BY o.created_at DESC
                     ");
@@ -536,9 +536,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                     ];
                     
                     foreach ($vehicles as $v) {
-                        if (empty($v['ownership_end_date'])) {
-                            $stats['active_vehicles']++;
-                        }
+                        // All vehicles in the list are considered active
+                        $stats['active_vehicles']++;
                         $stats['total_value'] += $v['daily_rate'] ?? 0;
                     }
                     
@@ -547,9 +546,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                     if (!empty($vins)) {
                         $placeholders = str_repeat('?,', count($vins) - 1) . '?';
                         $stmt = $pdo->prepare("
-                            SELECT SUM(total_cost) as total_revenue 
+                            SELECT SUM(trip_price) as total_revenue 
                             FROM rental_history 
-                            WHERE vin IN ($placeholders) AND status = 'completed'
+                            WHERE vehicle_identifier IN ($placeholders) AND trip_status = 'completed'
                         ");
                         $stmt->execute($vins);
                         $revenue = $stmt->fetch(PDO::FETCH_ASSOC);

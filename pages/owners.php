@@ -221,6 +221,7 @@ $allVins = $pdo->query("SELECT vin, make, model, year FROM vehicles ORDER BY yea
                             <td><?php echo htmlspecialchars($owner['owner_name']); ?></td>
                             <td><?php echo htmlspecialchars($owner['owner_type'] ?? 'N/A'); ?></td>
                             <td>
+                                <button class="btn btn-sm btn-info" onclick="showOwnerDetails(<?php echo $owner['id']; ?>)">Details</button>
                                 <button class="btn btn-sm btn-primary" onclick="editOwner(<?php echo htmlspecialchars(json_encode($owner)); ?>)">Edit</button>
                                 <button class="btn btn-sm btn-danger" onclick="deleteOwner(<?php echo $owner['id']; ?>, '<?php echo htmlspecialchars($owner['owner_name'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($owner['vin'], ENT_QUOTES); ?>')">Delete</button>
                             </td>

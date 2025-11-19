@@ -121,6 +121,7 @@
                     </span>
                 </td>
                 <td>
+                    <button class="btn-info" onclick="showRepairDetails(<?php echo $row['id']; ?>)" style="background: #17a2b8; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin-right: 0.5rem;">Details</button>
                     <button class="btn-edit" onclick="editRepair(<?php echo htmlspecialchars(json_encode($row)); ?>)" style="background: #28a745; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; margin-right: 0.5rem;">Edit</button>
                     <button class="btn-delete" onclick="showDeleteRepairModal(<?php echo $row['id']; ?>)" style="background: #dc3545; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">Delete</button>
                 </td>

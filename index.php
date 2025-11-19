@@ -2722,6 +2722,27 @@ window.showToast = (type, title, message, duration) => ToastNotification.show({ 
             if (confirm('Are you sure you want to delete this reservation?')) {
                 fetch('', {
                     method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'ajax=1&action=delete_reservation&id=' + id
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Reservation deleted successfully!');
+                        location.reload();
+                    } else {
+                        alert(data.message || 'Error deleting reservation');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error deleting reservation');
+                });
+            }
+        }
+    </script>
 <!-- Vehicle Details Modal -->
 <style>
 .details-modal {

@@ -266,7 +266,7 @@ if (isset($_GET['action'])) {
             
             // Get active rental_history
             $stmt = $pdo->prepare("
-                SELECT r.*, c.name as customer_name, c.email as customer_email
+                SELECT r.*, CONCAT(c.first_name, ' ', c.last_name) as customer_name, c.email as customer_email
                 FROM rental_history r 
                 JOIN customers c ON r.guest_name = c.turo_guest_name 
                 WHERE r.vehicle_identifier = ? AND r.status IN ('confirmed', 'active')
@@ -959,7 +959,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     // Get active rental_history
                     $stmt = $pdo->prepare("
-                        SELECT r.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone
+                        SELECT r.*, CONCAT(c.first_name, ' ', c.last_name) as customer_name, c.email as customer_email, c.phone as customer_phone
                         FROM rental_history r 
                         JOIN customers c ON r.guest_name = c.turo_guest_name 
                         WHERE r.vehicle_identifier = ? AND r.status IN ('confirmed', 'active')

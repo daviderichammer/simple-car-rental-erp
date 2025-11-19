@@ -2880,6 +2880,7 @@ window.showToast = (type, title, message, duration) => ToastNotification.show({ 
 
 .details-table {
 </script>
+<style>
     width: 100%;
     border-collapse: collapse;
     margin-top: 15px;

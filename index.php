@@ -269,7 +269,7 @@ if (isset($_GET['action'])) {
                 SELECT r.*, CONCAT(c.first_name, ' ', c.last_name) as customer_name, c.email as customer_email
                 FROM rental_history r 
                 JOIN customers c ON r.guest_name = c.turo_guest_name 
-                WHERE r.vehicle_identifier = ? AND r.status IN ('confirmed', 'active')
+                WHERE r.vehicle_identifier = ? AND r.trip_status IN ('confirmed', 'active')
                 ORDER BY r.start_date DESC
             ");
             $stmt->execute([$vin]);
@@ -962,7 +962,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         SELECT r.*, CONCAT(c.first_name, ' ', c.last_name) as customer_name, c.email as customer_email, c.phone as customer_phone
                         FROM rental_history r 
                         JOIN customers c ON r.guest_name = c.turo_guest_name 
-                        WHERE r.vehicle_identifier = ? AND r.status IN ('confirmed', 'active')
+                        WHERE r.vehicle_identifier = ? AND r.trip_status IN ('confirmed', 'active')
                         ORDER BY r.start_date DESC
                     ");
                     $stmt->execute([$vin]);
@@ -3298,7 +3298,7 @@ function renderVehicleTabContent(tabName, data) {
                                     <td>${r.repair_date || 'N/A'}</td>
                                     <td>${r.description || 'N/A'}</td>
                                     <td>$${r.cost || '0'}</td>
-                                    <td><span class="details-badge status-${(r.status || '').toLowerCase()}">${r.status || 'N/A'}</span></td>
+                                    <td><span class="details-badge status-${(r.trip_status || '').toLowerCase()}">${r.trip_status || 'N/A'}</span></td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -3329,7 +3329,7 @@ function renderVehicleTabContent(tabName, data) {
                                     <td class="clickable" onclick="event.stopPropagation(); showCustomerDetails(${r.guest_name})">${r.customer_name || 'N/A'}</td>
                                     <td>${r.start_date || 'N/A'}</td>
                                     <td>${r.end_date || 'N/A'}</td>
-                                    <td><span class="details-badge status-${(r.status || '').toLowerCase()}">${r.status || 'N/A'}</span></td>
+                                    <td><span class="details-badge status-${(r.trip_status || '').toLowerCase()}">${r.trip_status || 'N/A'}</span></td>
                                     <td>${r.customer_phone || r.customer_email || 'N/A'}</td>
                                 </tr>
                             `).join('')}
@@ -3798,7 +3798,7 @@ function renderCustomerTabContent(tabName, data) {
                                     <td class="clickable" onclick="event.stopPropagation(); showVehicleDetails('${r.vin}')">${r.make || ''} ${r.model || ''}</td>
                                     <td>${r.start_date || 'N/A'}</td>
                                     <td>${r.end_date || 'N/A'}</td>
-                                    <td><span class="details-badge status-${(r.status || '').toLowerCase()}">${r.status || 'N/A'}</span></td>
+                                    <td><span class="details-badge status-${(r.trip_status || '').toLowerCase()}">${r.trip_status || 'N/A'}</span></td>
                                     <td>$${r.total_cost || '0'}</td>
                                 </tr>
                             `).join('')}
@@ -4057,7 +4057,7 @@ function renderReservationTabContent(tabName, data) {
                                 <tr style="cursor: pointer;" onclick="showReservationDetails(${r.id})">
                                     <td>${r.start_date || 'N/A'}</td>
                                     <td>${r.end_date || 'N/A'}</td>
-                                    <td><span class="details-badge status-${(r.status || '').toLowerCase()}">${r.status || 'N/A'}</span></td>
+                                    <td><span class="details-badge status-${(r.trip_status || '').toLowerCase()}">${r.trip_status || 'N/A'}</span></td>
                                     <td>$${r.total_cost || '0'}</td>
                                 </tr>
                             `).join('')}
@@ -4296,7 +4296,7 @@ function renderRepairTabContent(tabName, data) {
                     <div class="details-info-item">
                         <div class="details-info-label">Status</div>
                         <div class="details-info-value">
-                            <span class="details-badge status-${(repair.status || '').toLowerCase()}">${repair.status || 'N/A'}</span>
+                            <span class="details-badge status-${(repair.trip_status || '').toLowerCase()}">${repair.trip_status || 'N/A'}</span>
                         </div>
                     </div>
                     <div class="details-info-item">
@@ -4367,7 +4367,7 @@ function renderRepairTabContent(tabName, data) {
                                     <td>${r.repair_date || 'N/A'}</td>
                                     <td>${r.description || 'N/A'}</td>
                                     <td>$${r.cost || '0'}</td>
-                                    <td><span class="details-badge status-${(r.status || '').toLowerCase()}">${r.status || 'N/A'}</span></td>
+                                    <td><span class="details-badge status-${(r.trip_status || '').toLowerCase()}">${r.trip_status || 'N/A'}</span></td>
                                 </tr>
                             `).join('')}
                         </tbody>

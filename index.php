@@ -270,7 +270,7 @@ if (isset($_GET['action'])) {
                 FROM rental_history r 
                 JOIN customers c ON r.guest_name = c.turo_guest_name 
                 WHERE r.vehicle_identifier = ? AND r.trip_status IN ('confirmed', 'active')
-                ORDER BY r.start_date DESC
+                ORDER BY r.trip_start DESC
             ");
             $stmt->execute([$vin]);
             $rental_history = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -963,7 +963,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         FROM rental_history r 
                         JOIN customers c ON r.guest_name = c.turo_guest_name 
                         WHERE r.vehicle_identifier = ? AND r.trip_status IN ('confirmed', 'active')
-                        ORDER BY r.start_date DESC
+                        ORDER BY r.trip_start DESC
                     ");
                     $stmt->execute([$vin]);
                     $rental_history = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -1105,7 +1105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         FROM rental_history r 
                         JOIN vehicles v ON r.vin = v.vin 
                         WHERE r.guest_name = ? 
-                        ORDER BY r.start_date DESC
+                        ORDER BY r.trip_start DESC
                     ");
                     $stmt->execute([$guest_name]);
                     $rental_history = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -3327,8 +3327,8 @@ function renderVehicleTabContent(tabName, data) {
                             ${rental_history.map(r => `
                                 <tr style="cursor: pointer;" onclick="showReservationDetails(${r.id})">
                                     <td class="clickable" onclick="event.stopPropagation(); showCustomerDetails(${r.guest_name})">${r.customer_name || 'N/A'}</td>
-                                    <td>${r.start_date || 'N/A'}</td>
-                                    <td>${r.end_date || 'N/A'}</td>
+                                    <td>${r.trip_start || 'N/A'}</td>
+                                    <td>${r.trip_end || 'N/A'}</td>
                                     <td><span class="details-badge status-${(r.trip_status || '').toLowerCase()}">${r.trip_status || 'N/A'}</span></td>
                                     <td>${r.customer_phone || r.customer_email || 'N/A'}</td>
                                 </tr>
@@ -3796,8 +3796,8 @@ function renderCustomerTabContent(tabName, data) {
                             ${rental_history.map(r => `
                                 <tr style="cursor: pointer;" onclick="showReservationDetails(${r.id})">
                                     <td class="clickable" onclick="event.stopPropagation(); showVehicleDetails('${r.vin}')">${r.make || ''} ${r.model || ''}</td>
-                                    <td>${r.start_date || 'N/A'}</td>
-                                    <td>${r.end_date || 'N/A'}</td>
+                                    <td>${r.trip_start || 'N/A'}</td>
+                                    <td>${r.trip_end || 'N/A'}</td>
                                     <td><span class="details-badge status-${(r.trip_status || '').toLowerCase()}">${r.trip_status || 'N/A'}</span></td>
                                     <td>$${r.total_cost || '0'}</td>
                                 </tr>
@@ -4055,8 +4055,8 @@ function renderReservationTabContent(tabName, data) {
                         <tbody>
                             ${previous.map(r => `
                                 <tr style="cursor: pointer;" onclick="showReservationDetails(${r.id})">
-                                    <td>${r.start_date || 'N/A'}</td>
-                                    <td>${r.end_date || 'N/A'}</td>
+                                    <td>${r.trip_start || 'N/A'}</td>
+                                    <td>${r.trip_end || 'N/A'}</td>
                                     <td><span class="details-badge status-${(r.trip_status || '').toLowerCase()}">${r.trip_status || 'N/A'}</span></td>
                                     <td>$${r.total_cost || '0'}</td>
                                 </tr>

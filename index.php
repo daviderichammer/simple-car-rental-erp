@@ -278,7 +278,7 @@ if (isset($_GET['action'])) {
             // Get expenses
             $stmt = $pdo->prepare("
                 SELECT ft.* FROM financial_transactions ft JOIN rental_history rh ON ft.reservation_id = rh.id 
-                WHERE vin = ? 
+                WHERE rh.vehicle_identifier = ? 
                 ORDER BY ft.transaction_date DESC 
                 LIMIT 10
             ");
@@ -986,7 +986,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             SUM(total_cost) as total_revenue,
                             AVG(DATEDIFF(end_date, start_date)) as avg_trip_days
                         FROM rental_history 
-                        WHERE vin = ? AND status = 'completed'
+                        WHERE vehicle_identifier = ? AND trip_status = 'completed'
                     ");
                     $stmt->execute([$vin]);
                     $stats = $stmt->fetch(PDO::FETCH_ASSOC);

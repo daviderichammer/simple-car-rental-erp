@@ -1,3 +1,4 @@
+<!-- Maintenance page start -->
 <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
     <div>
         <h2>Maintenance Management</h2>
@@ -68,6 +69,7 @@
         </thead>
         <tbody>
             <?php
+            try {
             // Get filter parameters
             $filterStatus = $_GET['status'] ?? '';
             $filterType = $_GET['type'] ?? '';
@@ -127,6 +129,9 @@
                 echo "<button class='btn-delete' onclick='deleteMaintenance(" . $row['id'] . ", \"" . htmlspecialchars($row['vehicle_name']) . "\", \"" . htmlspecialchars($row['maintenance_type']) . "\")">Delete</button>";
                 echo "</td>";
                 echo "</tr>";
+            }
+            } catch (Exception $e) {
+                echo "<tr><td colspan='7' style='color: red; padding: 2rem; text-align: center;'>Database Error: " . htmlspecialchars($e->getMessage()) . "</td></tr>";
             }
             ?>
         </tbody>

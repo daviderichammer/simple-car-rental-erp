@@ -2149,13 +2149,8 @@ $current_page = $_GET['page'] ?? 'dashboard';
                         <span>📋</span> OPERATIONS
                     </div>
                     <a href="?page=rental_history" class="nav-item <?php echo $current_page === 'rental_history' ? 'active' : ''; ?>">
-                        <span class="nav-icon">📅</span>
-                        <span>Reservations</span>
-                        <span class="nav-badge">3</span>
-                    </a>
-                    <a href="?page=rental_history" class="nav-item <?php echo $current_page === 'rental_history' ? 'active' : ''; ?>">
                         <span class="nav-icon">📜</span>
-                        <span>Rental History</span>
+                        <span>Rentals</span>
                         <span class="nav-badge">3,404</span>
                     </a>
                     <a href="?page=customers" class="nav-item <?php echo $current_page === 'customers' ? 'active' : ''; ?>">

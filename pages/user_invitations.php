@@ -26,13 +26,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $invite_url = "https://admin.infiniteautorentals.com/accept_invite.php?token=" . $token;
             
             // Send email (using mail() function - you may want to use a proper email service)
-            $subject = "Invitation to Car Rental ERP System";
+            $subject = "Invitation to RAVEN System";
             $message = "Hello,\n\n";
-            $message .= "You have been invited to join the Car Rental ERP System.\n\n";
+            $message .= "You have been invited to join the RAVEN System.\n\n";
             $message .= "Click the link below to accept your invitation and set up your account:\n";
             $message .= $invite_url . "\n\n";
             $message .= "This invitation will expire in 7 days.\n\n";
-            $message .= "Best regards,\nCar Rental ERP Team";
+            $message .= "Best regards,\nRAVEN Team";
             $headers = "From: noreply@infiniteautorentals.com\r\n";
             $headers .= "Reply-To: support@infiniteautorentals.com\r\n";
             
@@ -69,13 +69,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $invite_url = "https://admin.infiniteautorentals.com/accept_invite.php?token=" . $token;
             
             // Send email
-            $subject = "Invitation to Car Rental ERP System (Resent)";
+            $subject = "Invitation to RAVEN System (Resent)";
             $message = "Hello,\n\n";
-            $message .= "Your invitation to join the Car Rental ERP System has been resent.\n\n";
+            $message .= "Your invitation to join the RAVEN System has been resent.\n\n";
             $message .= "Click the link below to accept your invitation and set up your account:\n";
             $message .= $invite_url . "\n\n";
             $message .= "This invitation will expire in 7 days.\n\n";
-            $message .= "Best regards,\nCar Rental ERP Team";
+            $message .= "Best regards,\nRAVEN Team";
             $headers = "From: noreply@infiniteautorentals.com\r\n";
             $headers .= "Reply-To: support@infiniteautorentals.com\r\n";
             
@@ -107,7 +107,7 @@ $pdo->query("UPDATE user_invitations SET status = 'expired' WHERE status = 'pend
 
 <div class="container-fluid mt-4">
     <h2>User Invitations</h2>
-    <p>Send invitations to new users to join the Car Rental ERP system</p>
+    <p>Send invitations to new users to join the RAVEN system</p>
     
     <?php if (isset($success_message)): ?>
     <div class="alert alert-success alert-dismissible fade show">

@@ -2,7 +2,7 @@
 <?php
 /**
  * Google Sheets Sync Script
- * Syncs data from Google Sheets to the Car Rental ERP database
+ * Syncs data from Google Sheets to the RAVEN database
  * Can be run manually or via cron job
  */
 
@@ -39,7 +39,7 @@ use Google\Client;
 use Google\Service\Sheets;
 
 $client = new Client();
-$client->setApplicationName('Car Rental ERP Sync');
+$client->setApplicationName('RAVEN Sync');
 $client->setScopes([Sheets::SPREADSHEETS_READONLY]);
 $client->setAuthConfig(__DIR__ . '/../service_account_credentials.json');
 

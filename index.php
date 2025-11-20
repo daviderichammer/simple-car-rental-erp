@@ -1,5 +1,5 @@
 <?php
-// Simple Car Rental ERP System - MODULAR VERSION with Edit Functionality for ALL PAGES
+// Simple RAVEN System - MODULAR VERSION with Edit Functionality for ALL PAGES
 // Complete edit functionality for Vehicles, Customers, Reservations, Maintenance, Users, and Roles
 session_start();
 
@@ -49,7 +49,7 @@ if (!isset($_SESSION['user_id'])) {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Car Rental ERP</title>
+        <title>RAVEN</title>
         <style>
             * {
                 margin: 0;
@@ -165,7 +165,8 @@ input:focus, select:focus, textarea:focus {
     <body>
         <div class="login-container">
             <div class="login-header">
-                <h1>Car Rental ERP</h1>
+                <h1>RAVEN</h1>
+                <p style="font-size: 12px; color: #888; margin-bottom: 5px;">Rental Analytics & Vehicle Enterprise Network</p>
                 <p>Sign in to your account</p>
             </div>
             
@@ -1421,7 +1422,7 @@ $current_page = $_GET['page'] ?? 'dashboard';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Car Rental ERP System</title>
+    <title>RAVEN System</title>
     <style>
         * {
             margin: 0;
@@ -2084,7 +2085,7 @@ $current_page = $_GET['page'] ?? 'dashboard';
 </head>
 <body>
     <div class="header">
-        <div class="header-left"><button class="mobile-toggle" onclick="toggleSidebar()">☰</button><h1>Car Rental ERP System</h1></div>
+        <div class="header-left"><button class="mobile-toggle" onclick="toggleSidebar()">☰</button><h1>RAVEN</h1></div>
         <div class="user-info">
             <span>Welcome, <?php echo htmlspecialchars($_SESSION['user_name']); ?></span>
             <form method="POST" style="margin: 0;">

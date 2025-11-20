@@ -1,7 +1,7 @@
 <?php
 /**
  * Turo CSV Import System
- * Comprehensive class for importing Turo trip earnings data into Car Rental ERP
+ * Comprehensive class for importing Turo trip earnings data into RAVEN
  */
 
 class TuroImporter {

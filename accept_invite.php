@@ -106,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $invitation) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Accept Invitation - Car Rental ERP</title>
+    <title>Accept Invitation - RAVEN</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
@@ -167,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $invitation) {
     <div class="invite-card">
         <div class="invite-header">
             <i class="fas fa-envelope-open-text fa-3x mb-3"></i>
-            <h2>Welcome to Car Rental ERP</h2>
+            <h2>Welcome to RAVEN</h2>
             <p class="mb-0">Complete your registration to get started</p>
         </div>
         <div class="invite-body">

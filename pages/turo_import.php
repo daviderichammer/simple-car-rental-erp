@@ -29,7 +29,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'sync_now' && isset($permiss
 
 <div class="container-fluid mt-4">
     <h2>Google Sheets Sync</h2>
-    <p>Synchronize data from Google Sheets to the Car Rental ERP database</p>
+    <p>Synchronize data from Google Sheets to the RAVEN database</p>
     
     <!-- Last Sync Info -->
     <div class="row mb-4" style="display: flex; flex-wrap: wrap; gap: 20px;">
